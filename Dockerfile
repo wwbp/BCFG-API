@@ -1,24 +1,28 @@
-FROM python:3.12-slim
+# Use Python 3.11-slim as the base image
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy Pipfile and Pipfile.lock to the working directory
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev
+
+# Install pipenv
+RUN pip install pipenv
+
+# Copy the Pipfile and Pipfile.lock to the container
 COPY Pipfile Pipfile.lock /app/
 
-# Install pipenv and project dependencies
-RUN pip install pipenv && pipenv install --system --deploy
+# Install the project dependencies
+RUN pipenv install --system --deploy
 
-# Copy the rest of the application code to the working directory
-COPY . /app
+# Copy the rest of the app files
+COPY . /app/
 
-# Expose the port that Flask will run on
-EXPOSE 5000
+# Expose port 8000 for Django
+EXPOSE 8000
 
-# Set the environment variables
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-
-# Command to run the Flask app
-CMD ["gunicorn", "-w", "4", "app:app", "--bind", "0.0.0.0:5000"]
-
+# Default command to run the Django development server
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

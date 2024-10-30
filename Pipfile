@@ -8,6 +8,7 @@ flask = "*"
 openai = "*"
 python-dotenv = "*"
 gunicorn = "*"
+django = "*"
 
 [dev-packages]
 
