@@ -11,10 +11,10 @@ logging.basicConfig(level=logging.INFO)
 
 
 class DatabaseInterface:
-    def get_user_by_id(self, id):
+    def get_user_by_bcfg_id(self, bcfg_id):
         raise NotImplementedError
 
-    def create_user(self, name):
+    def create_user(self, bcfg_id, name):
         raise NotImplementedError
 
     def get_or_create_assistant(self, user):
@@ -28,29 +28,20 @@ class DatabaseInterface:
 
 
 class Database(DatabaseInterface):
-    def get_user_by_id(self, id):
+    def get_user_by_bcfg_id(self, bcfg_id):
         try:
-            return User.objects.get(id=id)
+            return User.objects.get(bcfg_id=bcfg_id)
         except User.DoesNotExist:
             return None
 
-    def create_user(self, name):
-        user = User.objects.create(name=name)
-        return user
+    def create_user(self, bcfg_id, name):
+        return User.objects.create(bcfg_id=bcfg_id, name=name)
 
     def get_or_create_assistant(self, user):
         assistant, created = Assistant.objects.get_or_create(user=user)
-        return {
-            'created': created,
-            'user_id': user.id,
-            'gpt_assistant_id': assistant.gpt_assistant_id,
-            'gpt_thread_id': assistant.gpt_thread_id
-        }
+        return assistant, created
 
-    def save_assistant(self, assistant_data):
-        assistant = Assistant.objects.get(user_id=assistant_data['user_id'])
-        assistant.gpt_assistant_id = assistant_data['gpt_assistant_id']
-        assistant.gpt_thread_id = assistant_data['gpt_thread_id']
+    def save_assistant(self, assistant):
         assistant.save()
 
     def save_transcript(self, user, user_message, assistant_message):
@@ -59,7 +50,7 @@ class Database(DatabaseInterface):
 
 
 class ChatService:
-    def __init__(self, db: DatabaseInterface, openai_client, requests_lib):
+    def __init__(self, db, openai_client, requests_lib):
         self.db = db
         self.openai_client = openai_client
         self.requests_lib = requests_lib
@@ -73,24 +64,23 @@ class ChatService:
             missing_fields.append("message")
         return missing_fields
 
-    def get_or_create_user(self, context, id):
-        if id:
-            user = self.db.get_user_by_id(id)
-            if user:
-                return user
-        return self.db.create_user(name=context['name'])
+    def get_or_create_user(self, context, bcfg_id):
+        user = self.db.get_user_by_bcfg_id(bcfg_id)
+        if user:
+            return user
+        else:
+            return self.db.create_user(bcfg_id=bcfg_id, name=context['name'])
 
     def initialize_assistant(self, user):
-        assistant_data = self.db.get_or_create_assistant(user)
-        if assistant_data.get('created'):
-            assistant_data['gpt_assistant_id'], assistant_data['gpt_thread_id'] = self.setup_assistant_and_thread(
-                user.id)
-            self.db.save_assistant(assistant_data)
-        return assistant_data
+        assistant, created = self.db.get_or_create_assistant(user)
+        if created or not assistant.gpt_assistant_id or not assistant.gpt_thread_id:
+            assistant.gpt_assistant_id, assistant.gpt_thread_id = self.setup_assistant_and_thread()
+            self.db.save_assistant(assistant)
+        return assistant
 
-    def setup_assistant_and_thread(self, user_id):
+    def setup_assistant_and_thread(self):
         assistant = self.openai_client.beta.assistants.create(
-            name=f"Assistant for user {user_id}",
+            name=f"Assistant",
             instructions="You are a helpful assistant.",
             model="gpt-4o-mini",
         )
@@ -99,15 +89,31 @@ class ChatService:
 
     def generate_gpt_response(self, assistant, message):
         self.openai_client.beta.threads.messages.create(
-            thread_id=assistant['gpt_thread_id'], role="user", content=message
+            thread_id=assistant.gpt_thread_id, role="user", content=message
         )
         run = self.openai_client.beta.threads.runs.create_and_poll(
-            thread_id=assistant['gpt_thread_id'], assistant_id=assistant['gpt_assistant_id']
+            thread_id=assistant.gpt_thread_id, assistant_id=assistant.gpt_assistant_id
         )
         if run.status == 'completed':
             messages = list(self.openai_client.beta.threads.messages.list(
-                thread_id=assistant['gpt_thread_id']))
-            return messages[-1].content
+                thread_id=assistant.gpt_thread_id))
+
+            logging.info("Sequence of messages in the GPT thread:")
+            for msg in messages:
+                text_content = ''.join(
+                    block.text.value for block in msg.content if block.type == 'text')
+                logging.info(f"Role: {msg.role}, Content: {text_content}")
+
+            assistant_messages = [
+                msg for msg in messages if msg.role == "assistant"]
+            if assistant_messages:
+                content_blocks = assistant_messages[0].content
+                text = ''.join(
+                    block.text.value for block in content_blocks if block.type == 'text')
+                return text
+            else:
+                logging.error("No assistant messages found in the thread.")
+                return "There was an error processing your message."
         else:
             logging.error(f"Run failed with status: {run.status}")
             return "There was an error processing your message."
@@ -129,13 +135,12 @@ class ChatService:
         else:
             logging.warning(f"Failed to send GPT response to user {user_id}: {response_text}")
 
-    def process_message(self, context, message, id):
-        user = self.get_or_create_user(context, id)
+    def process_message(self, context, message, bcfg_id):
+        user = self.get_or_create_user(context, bcfg_id)
         assistant = self.initialize_assistant(user)
         gpt_response = self.generate_gpt_response(assistant, message)
         self.db.save_transcript(user, message, gpt_response)
-        self.send_message_to_participant(
-            user.id, gpt_response)  # Access 'id' as an attribute
+        self.send_message_to_participant(user.bcfg_id, gpt_response)
 
 
 @csrf_exempt
