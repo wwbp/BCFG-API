@@ -9,6 +9,7 @@ openai = "*"
 python-dotenv = "*"
 gunicorn = "*"
 django = "*"
+requests = "*"
 
 [dev-packages]
 
