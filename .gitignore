@@ -6,6 +6,4 @@
 
 # 
 .env
-Pipfile.lock
 .DS_Store
-Archive.zip
