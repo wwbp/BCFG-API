@@ -2,18 +2,71 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Simple Chat Interface</title>
+    <title>Chat Interface</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        /* Chat window styles */
         #chat-window {
             border: 1px solid #ccc;
             width: 500px;
-            height: 200px;
-            overflow: auto;
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        /* Chat message styles */
+        .message {
+            display: flex;
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.bot .message-content {
+            background-color: #e1ffc7;
+            border-bottom-left-radius: 0;
+        }
+
+        .message.user .message-content {
+            background-color: #c7dfff;
+            border-bottom-right-radius: 0;
+        }
+
+        /* Input area styles */
+        #input-area {
+            margin-top: 10px;
+        }
+
+        #message {
+            width: 400px;
+            height: 50px;
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        #send-button {
+            padding: 10px 20px;
+            font-size: 14px;
         }
     </style>
     <script>
         function getCookie(name) {
+            // ... (Same as before)
             var cookieValue = null;
             if (document.cookie && document.cookie !== '') {
                 var cookies = document.cookie.split(';');
@@ -40,16 +93,22 @@
             .then(data => {
                 const conversation = data.conversation || [];
                 conversation.forEach(message => {
-                    const messageDiv = document.createElement('div');
-                    messageDiv.textContent = message;
-                    document.getElementById('chat-window').appendChild(messageDiv);
+                    appendMessageToChatWindow(message.content, message.sender);
                 });
+                // Scroll to the bottom
+                const chatWindow = document.getElementById('chat-window');
+                chatWindow.scrollTop = chatWindow.scrollHeight;
             })
             .catch(error => console.error('Error fetching conversation:', error));
         });
 
         function sendMessage() {
-            var message = document.getElementById('message').value;
+            var message = document.getElementById('message').value.trim();
+            if (message === '') return;
+
+            // Display the user's message
+            appendMessageToChatWindow(message, 'user');
+
             fetch('{% url "chat:chat_send_message" %}', {
                 method: 'POST',
                 headers: {
@@ -60,24 +119,38 @@
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('response').innerText = data.response;
-                // Optionally, add the message to the conversation window
-                const messageDiv = document.createElement('div');
-                messageDiv.textContent = data.response;
-                document.getElementById('chat-window').appendChild(messageDiv);
-                // Clear the textarea
-                document.getElementById('message').value = '';
+                // Display the bot's response
+                appendMessageToChatWindow(data.response, 'bot');
+                // Scroll to the bottom
+                const chatWindow = document.getElementById('chat-window');
+                chatWindow.scrollTop = chatWindow.scrollHeight;
             })
             .catch(error => console.error('Error:', error));
+
+            // Clear the textarea
+            document.getElementById('message').value = '';
+        }
+
+        function appendMessageToChatWindow(message, sender) {
+            const chatWindow = document.getElementById('chat-window');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('message-content');
+            contentDiv.textContent = message;
+
+            messageDiv.appendChild(contentDiv);
+            chatWindow.appendChild(messageDiv);
         }
     </script>
 </head>
 <body>
     <h1>Chat Interface</h1>
     <div id="chat-window"></div>
-    <label for="message">Enter your message:</label><br>
-    <textarea id="message" rows="5" cols="50" placeholder="Type your message here"></textarea><br>
-    <button onclick="sendMessage()">Send</button>
-    <p id="response"></p>
+    <div id="input-area">
+        <textarea id="message" placeholder="Type your message here"></textarea>
+        <button id="send-button" onclick="sendMessage()">Send</button>
+    </div>
 </body>
 </html>
