@@ -1,4 +1,5 @@
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from .models import User, Assistant, Transcript
 import json
@@ -162,3 +163,25 @@ def incoming_message(request, id=None):
 
         service.process_message(context, message, id)
         return JsonResponse({"status": "received"}, status=200)
+
+
+# View to render the chat page
+def chat_page_view(request):
+    return render(request, 'chat/chat_interface.html')
+
+@csrf_exempt  
+def chat_send_message(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        message = data.get('message')
+        response_message = f"I received your message: {message}"
+        return JsonResponse({'response': response_message})
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=400)
+
+def get_conversation(request):
+    if request.method == 'GET':
+        # For now, we'll return an empty conversation
+        return JsonResponse({'conversation': []})
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=400)

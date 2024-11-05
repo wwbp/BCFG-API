@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Chat Interface</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        #chat-window {
+            border: 1px solid #ccc;
+            width: 500px;
+            height: 200px;
+            overflow: auto;
+        }
+    </style>
+    <script>
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i=0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length+1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length+1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Fetch conversation history on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('{% url "chat:get_conversation" %}', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const conversation = data.conversation || [];
+                conversation.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.textContent = message;
+                    document.getElementById('chat-window').appendChild(messageDiv);
+                });
+            })
+            .catch(error => console.error('Error fetching conversation:', error));
+        });
+
+        function sendMessage() {
+            var message = document.getElementById('message').value;
+            fetch('{% url "chat:chat_send_message" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')  // Include CSRF token
+                },
+                body: JSON.stringify({'message': message})
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('response').innerText = data.response;
+                // Optionally, add the message to the conversation window
+                const messageDiv = document.createElement('div');
+                messageDiv.textContent = data.response;
+                document.getElementById('chat-window').appendChild(messageDiv);
+                // Clear the textarea
+                document.getElementById('message').value = '';
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+</head>
+<body>
+    <h1>Chat Interface</h1>
+    <div id="chat-window"></div>
+    <label for="message">Enter your message:</label><br>
+    <textarea id="message" rows="5" cols="50" placeholder="Type your message here"></textarea><br>
+    <button onclick="sendMessage()">Send</button>
+    <p id="response"></p>
+</body>
+</html>
