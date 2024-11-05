@@ -32,3 +32,32 @@
         settings.py
         urls.py
         wsgi.py
+./
+    print_dir_scipt.py
+    Dockerfile
+    README.md
+    Pipfile
+    docker-compose.yml
+    manage.py
+    Pipfile.lock
+    ds.txt
+    chat/
+        models.py
+        __init__.py
+        apps.py
+        admin.py
+        tests.py
+        urls.py
+        views.py
+        migrations/
+            __init__.py
+            0001_initial.py
+        templates/
+            chat/
+                chat_interface.html
+    bcfg_chat_api/
+        asgi.py
+        __init__.py
+        settings.py
+        urls.py
+        wsgi.py
