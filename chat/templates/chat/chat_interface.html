@@ -63,26 +63,61 @@
             padding: 10px 20px;
             font-size: 14px;
         }
+        /* Add new styles for session ID */
+        #session-info {
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #555;
+        }
+
+        #refresh-session {
+            margin-top: 5px;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
     </style>
     <script>
         function getCookie(name) {
-            // ... (Same as before)
             var cookieValue = null;
             if (document.cookie && document.cookie !== '') {
                 var cookies = document.cookie.split(';');
-                for (var i=0; i < cookies.length; i++) {
+                for (var i = 0; i < cookies.length; i++) {
                     var cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length+1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length+1));
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                         break;
                     }
                 }
             }
             return cookieValue;
         }
-
-        // Fetch conversation history on page load
+    
+        function getParameterByName(name, url = window.location.href) {
+            name = name.replace(/[\[\]]/g, '\\$&');
+            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+            var results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+    
+        function displaySessionId() {
+            var sessionId = getCookie('chat_user_id');
+            if (sessionId) {
+                document.getElementById('session-info').textContent = 'Session ID: ' + sessionId;
+            } else {
+                document.getElementById('session-info').textContent = 'Session ID not found.';
+            }
+        }
+    
         document.addEventListener('DOMContentLoaded', function() {
+            var sessionId = getCookie('chat_user_id') || getParameterByName('session_id');
+            if (!sessionId) {
+                sessionId = 'generated-' + Date.now();
+                document.cookie = 'chat_user_id=' + sessionId + '; path=/; SameSite=None; Secure';
+            }
+            displaySessionId();
+    
             fetch('{% url "chat:get_conversation" %}', {
                 method: 'GET',
                 headers: {
@@ -95,58 +130,63 @@
                 conversation.forEach(message => {
                     appendMessageToChatWindow(message.content, message.sender);
                 });
-                // Scroll to the bottom
                 const chatWindow = document.getElementById('chat-window');
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             })
             .catch(error => console.error('Error fetching conversation:', error));
         });
-
+    
         function sendMessage() {
             var message = document.getElementById('message').value.trim();
             if (message === '') return;
-
-            // Display the user's message
+            var sessionId = getCookie('chat_user_id') || getParameterByName('session_id');
+            if (!sessionId) {
+                alert('Session ID not found. Please refresh the page.');
+                return;
+            }
             appendMessageToChatWindow(message, 'user');
-
             fetch('{% url "chat:chat_send_message" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')  // Include CSRF token
+                    'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify({'message': message})
+                body: JSON.stringify({'message': message, 'session_id': sessionId})
             })
             .then(response => response.json())
             .then(data => {
-                // Display the bot's response
                 appendMessageToChatWindow(data.response, 'bot');
-                // Scroll to the bottom
                 const chatWindow = document.getElementById('chat-window');
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             })
             .catch(error => console.error('Error:', error));
-
-            // Clear the textarea
             document.getElementById('message').value = '';
         }
-
+    
         function appendMessageToChatWindow(message, sender) {
             const chatWindow = document.getElementById('chat-window');
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message', sender);
-
             const contentDiv = document.createElement('div');
             contentDiv.classList.add('message-content');
             contentDiv.textContent = message;
-
             messageDiv.appendChild(contentDiv);
             chatWindow.appendChild(messageDiv);
         }
-    </script>
+
+        function refreshSession() {
+            // Clear the existing session ID cookie
+            document.cookie = 'chat_user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=None; Secure';
+            
+            // Reload the page to create a new session ID
+            location.reload();
+        }
+    </script>    
 </head>
 <body>
     <h1>Chat Interface</h1>
+    <div id="session-info"></div>
+    <button id="refresh-session" onclick="refreshSession()">Start New Session</button>
     <div id="chat-window"></div>
     <div id="input-area">
         <textarea id="message" placeholder="Type your message here"></textarea>

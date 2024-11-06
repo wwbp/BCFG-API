@@ -191,18 +191,18 @@ def chat_send_message(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         message = data.get('message')
+        session_id = data.get('session_id')
 
-        # Get chat_user_id from cookie
-        chat_user_id = request.COOKIES.get('chat_user_id')
-        if not chat_user_id:
+        if not session_id:
             return JsonResponse({'error': 'User not identified.'}, status=400)
 
         db = Database()
         gpt_manager = GPTAssistantManager(
-            OpenAI(api_key=os.getenv("OPENAI_API_KEY", "")))
+            OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        )
         service = ChatService(db=db, gpt_manager=gpt_manager)
 
-        gpt_response = service.process_message_for_chat(chat_user_id, message)
+        gpt_response = service.process_message_for_chat(session_id, message)
         return JsonResponse({'response': gpt_response})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
