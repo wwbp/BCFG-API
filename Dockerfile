@@ -5,24 +5,28 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install pipenv
-RUN pip install pipenv
+RUN pip install --no-cache-dir pipenv
 
-# Copy the Pipfile and Pipfile.lock to the container
+# Copy only the Pipfile and Pipfile.lock to leverage Docker cache
 COPY Pipfile Pipfile.lock /app/
 
 # Install the project dependencies
-RUN pipenv install --system --deploy
+RUN pipenv install --system --deploy --ignore-pipfile
 
 # Copy the rest of the app files
 COPY . /app/
 
-# Expose port 8000 for Django
-EXPOSE 8000
+# Collect static files (if applicable)
+RUN python manage.py collectstatic --noinput
 
-# Default command to run the Django development server
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Expose port 80 for the application
+EXPOSE 80
+
+# Command to run the application using Gunicorn
+CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:80"]
