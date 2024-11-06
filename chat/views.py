@@ -1,3 +1,4 @@
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views import View
 from django.utils.decorators import method_decorator
 import uuid
@@ -145,7 +146,8 @@ class ChatService:
         if status_code == 200:
             logging.info(f"Successfully sent GPT response to user {user_id}")
         else:
-            logging.warning(f"Failed to send GPT response to user {user_id}: {response_text}")
+            logging.warning(
+                f"Failed to send GPT response to user {user_id}: {response_text}")
 
 
 @csrf_exempt
@@ -171,6 +173,7 @@ def incoming_message(request, id=None):
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
 
 
+@xframe_options_exempt
 def chat_page_view(request):
     # Check if 'chat_user_id' cookie is present
     chat_user_id = request.COOKIES.get('chat_user_id')
@@ -236,4 +239,3 @@ def get_conversation(request):
             return JsonResponse({'conversation': []})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
-
