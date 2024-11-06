@@ -25,8 +25,8 @@ COPY . /app/
 # Collect static files (if applicable)
 RUN python manage.py collectstatic --noinput
 
-# Expose port 8000 for the application
-EXPOSE 8000
+# Expose port 80 for the application
+EXPOSE 80
 
 # Command to run the application using Gunicorn
-CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:80"]
