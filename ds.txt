@@ -4,7 +4,6 @@
     db.sqlite3
     README.md
     Pipfile
-    docker-compose.yml
     manage.py
     Pipfile.lock
     ds.txt

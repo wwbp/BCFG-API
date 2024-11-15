@@ -1,3 +1,6 @@
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, HttpResponseNotAllowed
+from .models import Prompt, Activity
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views import View
 from django.utils.decorators import method_decorator
@@ -148,6 +151,48 @@ class ChatService:
         else:
             logging.warning(
                 f"Failed to send GPT response to user {user_id}: {response_text}")
+
+
+def prompt_view(request):
+    prompt, _ = Prompt.objects.get_or_create(id=1)
+    activities = Activity.objects.all()
+    if request.method == 'POST':
+        prompt.persona = request.POST.get('persona', '')
+        prompt.knowledge = request.POST.get('knowledge', '')
+        prompt.save()
+        return redirect('chat:prompt')
+    context = {'prompt': prompt, 'activities': activities}
+    return render(request, 'chat/prompt.html', context)
+
+
+def activity_add(request):
+    if request.method == 'POST':
+        content = request.POST.get('content', '')
+        if content:
+            Activity.objects.create(content=content)
+        return redirect('chat:prompt')
+    else:
+        return HttpResponseNotAllowed(['POST'])
+
+
+def activity_edit(request, pk):
+    activity = get_object_or_404(Activity, pk=pk)
+    if request.method == 'POST':
+        content = request.POST.get('content', '')
+        activity.content = content
+        activity.save()
+        return redirect('chat:prompt')
+    context = {'activity': activity}
+    return render(request, 'chat/activity_edit.html', context)
+
+
+def activity_delete(request, pk):
+    activity = get_object_or_404(Activity, pk=pk)
+    if request.method == 'POST':
+        activity.delete()
+        return redirect('chat:prompt')
+    else:
+        return HttpResponseNotAllowed(['POST'])
 
 
 @csrf_exempt

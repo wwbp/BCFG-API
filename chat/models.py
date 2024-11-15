@@ -20,3 +20,12 @@ class Transcript(models.Model):
     user_message = models.TextField()
     assistant_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Prompt(models.Model):
+    persona = models.TextField()
+    knowledge = models.TextField()
+
+
+class Activity(models.Model):
+    content = models.TextField()

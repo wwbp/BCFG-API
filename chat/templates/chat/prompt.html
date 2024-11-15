@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prompt Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { display: flex; }
+        .left, .right { width: 50%; padding: 10px; box-sizing: border-box; }
+        textarea { width: 100%; height: 80px; margin-bottom: 10px; }
+        .activity-list { list-style: none; padding: 0; }
+        .activity-item { margin-bottom: 10px; }
+        .activity-actions { display: inline; margin-left: 10px; }
+        .activity-actions form { display: inline; }
+        h1, h2, h3 { margin-top: 0; }
+        button { padding: 5px 10px; }
+        label { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Prompt Interface</h1>
+    <div class="container">
+        <div class="left">
+            <h2>Activities</h2>
+            <ul class="activity-list">
+                {% for activity in activities %}
+                    <li class="activity-item">
+                        {{ activity.content }}
+                        <div class="activity-actions">
+                            <a href="{% url 'chat:activity_edit' activity.pk %}">Edit</a>
+                            <form action="{% url 'chat:activity_delete' activity.pk %}" method="post">
+                                {% csrf_token %}
+                                <button type="submit">Delete</button>
+                            </form>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+            <h3>Add New Activity</h3>
+            <form action="{% url 'chat:activity_add' %}" method="post">
+                {% csrf_token %}
+                <textarea name="content" placeholder="New activity"></textarea>
+                <button type="submit">Add Activity</button>
+            </form>
+        </div>
+        <div class="right">
+            <h2>Prompt</h2>
+            <form method="post">
+                {% csrf_token %}
+                <label for="persona">Persona:</label>
+                <textarea id="persona" name="persona">{{ prompt.persona }}</textarea>
+                <label for="knowledge">Knowledge:</label>
+                <textarea id="knowledge" name="knowledge">{{ prompt.knowledge }}</textarea>
+                <button type="submit">Update Prompt</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
