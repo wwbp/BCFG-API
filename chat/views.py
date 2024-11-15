@@ -50,20 +50,34 @@ class Database:
         return Transcript.objects.filter(user=user).order_by('created_at')
 
 
+def get_prompt_instructions():
+    prompt = Prompt.objects.first()
+    activities = Activity.objects.all()
+    instructions = ""
+    if prompt:
+        instructions += f"Persona:\n{prompt.persona}\n\nKnowledge:\n{prompt.knowledge}\n\n"
+    if activities:
+        instructions += "Activities:\n"
+        for activity in activities:
+            instructions += f"- {activity.content}\n"
+    return instructions
+
+
 class GPTAssistantManager:
     def __init__(self, openai_client):
         self.openai_client = openai_client
 
-    def initialize_assistant(self, assistant):
+    def initialize_assistant(self, assistant, instructions):
         if not assistant.gpt_assistant_id or not assistant.gpt_thread_id:
-            assistant.gpt_assistant_id, assistant.gpt_thread_id = self.setup_assistant_and_thread()
+            assistant.gpt_assistant_id, assistant.gpt_thread_id = self.setup_assistant_and_thread(
+                instructions)
             assistant.save()
         return assistant
 
-    def setup_assistant_and_thread(self):
+    def setup_assistant_and_thread(self, instructions):
         assistant = self.openai_client.beta.assistants.create(
             name="Assistant",
-            instructions="You are a helpful assistant.",
+            instructions=instructions,
             model="gpt-4o-mini",
         )
         thread = self.openai_client.beta.threads.create()
@@ -119,7 +133,9 @@ class ChatService:
     def process_message_for_api(self, context, message, bcfg_id):
         user = self.db.get_or_create_user(bcfg_id, context['name'])
         assistant = self.db.get_or_create_assistant(user)
-        assistant = self.gpt_manager.initialize_assistant(assistant)
+        instructions = "you are a helpful assistant"
+        assistant = self.gpt_manager.initialize_assistant(
+            assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
             assistant, message)
         self.db.save_transcript(user, message, gpt_response)
@@ -128,7 +144,9 @@ class ChatService:
     def process_message_for_chat(self, user_id, message):
         user = self.db.get_or_create_user(user_id, "Chat User")
         assistant = self.db.get_or_create_assistant(user)
-        assistant = self.gpt_manager.initialize_assistant(assistant)
+        instructions = get_prompt_instructions()
+        assistant = self.gpt_manager.initialize_assistant(
+            assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
             assistant, message)
         self.db.save_transcript(user, message, gpt_response)
