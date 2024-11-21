@@ -22,11 +22,15 @@ RUN pipenv install --system --deploy --ignore-pipfile
 # Copy the rest of the app files
 COPY . /app/
 
-# Collect static files (if applicable)
-RUN python manage.py collectstatic --noinput
-
 # Expose port 80 for the application
 EXPOSE 80
 
-# Command to run the application using Gunicorn
+# Copy the entrypoint script
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
+# Command to run the application
 CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:80"]

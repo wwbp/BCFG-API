@@ -170,7 +170,7 @@ class ChatService:
             logging.warning(
                 f"Failed to send GPT response to user {user_id}: {response_text}")
 
-
+@csrf_exempt
 def prompt_view(request):
     prompt, _ = Prompt.objects.get_or_create(id=1)
     activities = Activity.objects.all()
@@ -182,7 +182,7 @@ def prompt_view(request):
     context = {'prompt': prompt, 'activities': activities}
     return render(request, 'chat/prompt.html', context)
 
-
+@csrf_exempt
 def activity_add(request):
     if request.method == 'POST':
         content = request.POST.get('content', '')
@@ -192,7 +192,7 @@ def activity_add(request):
     else:
         return HttpResponseNotAllowed(['POST'])
 
-
+@csrf_exempt
 def activity_edit(request, pk):
     activity = get_object_or_404(Activity, pk=pk)
     if request.method == 'POST':
@@ -203,7 +203,7 @@ def activity_edit(request, pk):
     context = {'activity': activity}
     return render(request, 'chat/activity_edit.html', context)
 
-
+@csrf_exempt
 def activity_delete(request, pk):
     activity = get_object_or_404(Activity, pk=pk)
     if request.method == 'POST':
@@ -270,7 +270,7 @@ def chat_send_message(request):
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
 
-
+@csrf_exempt
 def get_conversation(request):
     if request.method == 'GET':
         # Get chat_user_id from cookie
