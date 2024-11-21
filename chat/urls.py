@@ -8,6 +8,7 @@ urlpatterns = [
          views.incoming_message, name='incoming_message'),
     path('chat/', views.chat_page_view, name='chat_page'),
     path('chat/login/', views.chat_login, name='login'),
+    path('chat/user_info/', views.get_user_info, name='get_user_info'),
     path('chat/send/', views.chat_send_message, name='chat_send_message'),
     path('chat/get_conversation/', views.get_conversation, name='get_conversation'),
     path('prompt/', views.prompt_view, name='prompt'),

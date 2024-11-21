@@ -111,10 +111,41 @@
         function displaySessionId() {
             var sessionId = getCookie('chat_user_id');
             if (sessionId) {
-                document.getElementById('session-info').textContent = 'USER ID: ' + sessionId;
+                fetch('{% url "chat:get_user_info" %}', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to get user info.');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('session-info').textContent = 'Not logged in.';
+                    } else {
+                        document.getElementById('session-info').textContent = 'Nickname: ' + data.nickname + ', User ID: ' + data.user_id;
+                        document.getElementById('logout-button').style.display = 'inline-block';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching user info:', error);
+                    document.getElementById('session-info').textContent = 'Not logged in.';
+                });
             } else {
                 document.getElementById('session-info').textContent = 'Not logged in.';
+                document.getElementById('logout-button').style.display = 'none';
             }
+        }
+
+        function logout() {
+            // Delete the 'chat_user_id' cookie
+            document.cookie = 'chat_user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            // Reload the page
+            location.reload();
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -122,6 +153,7 @@
             if (!userId) {
                 document.getElementById('login-form').style.display = 'block';
                 document.getElementById('chat-interface').style.display = 'none';
+                document.getElementById('logout-button').style.display = 'none';
             } else {
                 document.getElementById('login-form').style.display = 'none';
                 document.getElementById('chat-interface').style.display = 'block';
@@ -225,6 +257,7 @@
 <body>
     <h1>Chat Interface</h1>
     <div id="session-info"></div>
+    <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
     <!-- Login Form -->
     <div id="login-form">
         <input type="text" id="nickname" placeholder="Nickname">

@@ -317,7 +317,7 @@ def chat_login(request):
         if not UserActivity.objects.filter(user=user).exists():
             activities = list(Activity.objects.all())
             random_activities = random.sample(
-                activities, min(3, len(activities)))
+                activities, min(5, len(activities)))
             for activity in random_activities:
                 UserActivity.objects.create(user=user, activity=activity)
         response = JsonResponse({'status': 'success'})
@@ -326,3 +326,18 @@ def chat_login(request):
         return response
     else:
         return JsonResponse({'status': 'error', 'error': 'Invalid request method.'})
+
+
+@csrf_exempt
+def get_user_info(request):
+    if request.method == 'GET':
+        user_id = request.COOKIES.get('chat_user_id')
+        if not user_id:
+            return JsonResponse({'error': 'User not authenticated'}, status=401)
+        db = Database()
+        user = db.get_user_by_bcfg_id(user_id)
+        if not user:
+            return JsonResponse({'error': 'User not found'}, status=404)
+        return JsonResponse({'user_id': user.bcfg_id, 'nickname': user.name})
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=400)
