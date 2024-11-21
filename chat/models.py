@@ -10,13 +10,13 @@ class User(models.Model):
 
 
 class Assistant(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
     gpt_assistant_id = models.CharField(max_length=100)
     gpt_thread_id = models.CharField(max_length=100)
 
 
 class Transcript(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
     user_message = models.TextField()
     assistant_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -29,3 +29,8 @@ class Prompt(models.Model):
 
 class Activity(models.Model):
     content = models.TextField()
+
+
+class UserActivity(models.Model):
+    user = models.ForeignKey(User, on_delete=models.PROTECT)
+    activity = models.ForeignKey(Activity, on_delete=models.PROTECT)

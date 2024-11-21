@@ -1,6 +1,7 @@
+import random
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponseNotAllowed
-from .models import Prompt, Activity
+from .models import Prompt, Activity, UserActivity
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views import View
 from django.utils.decorators import method_decorator
@@ -49,17 +50,17 @@ class Database:
     def get_transcripts_for_user(self, user):
         return Transcript.objects.filter(user=user).order_by('created_at')
 
-
-    def get_prompt_instructions():
+    def get_prompt_instructions(self, user):
         prompt = Prompt.objects.first()
-        activities = Activity.objects.all()
+        activities = UserActivity.objects.filter(
+            user=user).select_related('activity')
         instructions = ""
         if prompt:
             instructions += f"Persona:\n{prompt.persona}\n\nKnowledge:\n{prompt.knowledge}\n\n"
         if activities:
             instructions += "Activities:\n"
-            for activity in activities:
-                instructions += f"- {activity.content}\n"
+            for user_activity in activities:
+                instructions += f"- {user_activity.activity.content}\n"
         return instructions
 
 
@@ -142,9 +143,11 @@ class ChatService:
         self.send_message_to_participant(user.bcfg_id, gpt_response)
 
     def process_message_for_chat(self, user_id, message):
-        user = self.db.get_or_create_user(user_id, "Chat User")
+        user = self.db.get_user_by_bcfg_id(user_id)
+        if not user:
+            return {'error': 'User not found. Please log in again.'}
         assistant = self.db.get_or_create_assistant(user)
-        instructions = self.db.get_prompt_instructions()
+        instructions = self.db.get_prompt_instructions(user)
         assistant = self.gpt_manager.initialize_assistant(
             assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
@@ -170,6 +173,7 @@ class ChatService:
             logging.warning(
                 f"Failed to send GPT response to user {user_id}: {response_text}")
 
+
 @csrf_exempt
 def prompt_view(request):
     prompt, _ = Prompt.objects.get_or_create(id=1)
@@ -182,6 +186,7 @@ def prompt_view(request):
     context = {'prompt': prompt, 'activities': activities}
     return render(request, 'chat/prompt.html', context)
 
+
 @csrf_exempt
 def activity_add(request):
     if request.method == 'POST':
@@ -191,6 +196,7 @@ def activity_add(request):
         return redirect('chat:prompt')
     else:
         return HttpResponseNotAllowed(['POST'])
+
 
 @csrf_exempt
 def activity_edit(request, pk):
@@ -202,6 +208,7 @@ def activity_edit(request, pk):
         return redirect('chat:prompt')
     context = {'activity': activity}
     return render(request, 'chat/activity_edit.html', context)
+
 
 @csrf_exempt
 def activity_delete(request, pk):
@@ -238,15 +245,7 @@ def incoming_message(request, id=None):
 
 @xframe_options_exempt
 def chat_page_view(request):
-    # Check if 'chat_user_id' cookie is present
-    chat_user_id = request.COOKIES.get('chat_user_id')
-    if not chat_user_id:
-        # Generate a new UUID
-        chat_user_id = str(uuid.uuid4())
-    response = render(request, 'chat/chat_interface.html')
-    # Set the cookie with the chat_user_id
-    response.set_cookie('chat_user_id', chat_user_id)
-    return response
+    return render(request, 'chat/chat_interface.html')
 
 
 @csrf_exempt
@@ -254,9 +253,8 @@ def chat_send_message(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         message = data.get('message')
-        session_id = data.get('session_id')
-
-        if not session_id:
+        user_id = request.COOKIES.get('chat_user_id')
+        if not user_id:
             return JsonResponse({'error': 'User not identified.'}, status=400)
 
         db = Database()
@@ -265,10 +263,11 @@ def chat_send_message(request):
         )
         service = ChatService(db=db, gpt_manager=gpt_manager)
 
-        gpt_response = service.process_message_for_chat(session_id, message)
+        gpt_response = service.process_message_for_chat(user_id, message)
         return JsonResponse({'response': gpt_response})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
+
 
 @csrf_exempt
 def get_conversation(request):
@@ -302,3 +301,28 @@ def get_conversation(request):
             return JsonResponse({'conversation': []})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
+
+
+@csrf_exempt
+def chat_login(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        nickname = data.get('nickname')
+        user_id = data.get('user_id')
+        if not nickname or not user_id:
+            return JsonResponse({'status': 'error', 'error': 'Nickname and User ID are required.'})
+        db = Database()
+        user = db.get_or_create_user(user_id, nickname)
+        # Assign 3 random activities if not already assigned
+        if not UserActivity.objects.filter(user=user).exists():
+            activities = list(Activity.objects.all())
+            random_activities = random.sample(
+                activities, min(3, len(activities)))
+            for activity in random_activities:
+                UserActivity.objects.create(user=user, activity=activity)
+        response = JsonResponse({'status': 'success'})
+        response.set_cookie('chat_user_id', user_id,
+                            httponly=False, samesite='Lax')
+        return response
+    else:
+        return JsonResponse({'status': 'error', 'error': 'Invalid request method.'})
