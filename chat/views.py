@@ -50,17 +50,17 @@ class Database:
         return Transcript.objects.filter(user=user).order_by('created_at')
 
 
-def get_prompt_instructions():
-    prompt = Prompt.objects.first()
-    activities = Activity.objects.all()
-    instructions = ""
-    if prompt:
-        instructions += f"Persona:\n{prompt.persona}\n\nKnowledge:\n{prompt.knowledge}\n\n"
-    if activities:
-        instructions += "Activities:\n"
-        for activity in activities:
-            instructions += f"- {activity.content}\n"
-    return instructions
+    def get_prompt_instructions():
+        prompt = Prompt.objects.first()
+        activities = Activity.objects.all()
+        instructions = ""
+        if prompt:
+            instructions += f"Persona:\n{prompt.persona}\n\nKnowledge:\n{prompt.knowledge}\n\n"
+        if activities:
+            instructions += "Activities:\n"
+            for activity in activities:
+                instructions += f"- {activity.content}\n"
+        return instructions
 
 
 class GPTAssistantManager:
@@ -144,7 +144,7 @@ class ChatService:
     def process_message_for_chat(self, user_id, message):
         user = self.db.get_or_create_user(user_id, "Chat User")
         assistant = self.db.get_or_create_assistant(user)
-        instructions = get_prompt_instructions()
+        instructions = self.db.get_prompt_instructions()
         assistant = self.gpt_manager.initialize_assistant(
             assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
