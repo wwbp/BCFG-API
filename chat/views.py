@@ -78,23 +78,17 @@ class GPTAssistantManager:
         thread = self.openai_client.beta.threads.create()
         return assistant.id, thread.id
 
-    def generate_gpt_response(self, assistant, message):
-        self.openai_client.beta.threads.messages.create(
-            thread_id=assistant.gpt_thread_id, role="user", content=message
-        )
+    def generate_gpt_response(self, assistant, message=None):
+        if message:
+            self.openai_client.beta.threads.messages.create(
+                thread_id=assistant.gpt_thread_id, role="user", content=message
+            )
         run = self.openai_client.beta.threads.runs.create_and_poll(
             thread_id=assistant.gpt_thread_id, assistant_id=assistant.gpt_assistant_id
         )
         if run.status == 'completed':
             messages = list(self.openai_client.beta.threads.messages.list(
                 thread_id=assistant.gpt_thread_id))
-
-            # logging.info("Sequence of messages in the GPT thread:")
-            # for msg in messages:
-            #     text_content = ''.join(
-            #         block.text.value for block in msg.content if block.type == 'text')
-            #     logging.info(f"Role: {msg.role}, Content: {text_content}")
-
             assistant_messages = [
                 msg for msg in messages if msg.role == "assistant"]
             if assistant_messages:
@@ -162,16 +156,27 @@ class ChatService:
         if assistant.exchange_count == 0 and not message:
             if assistant.current_activity_index < len(activities):
                 current_activity = activities[assistant.current_activity_index].activity
-                assistant_message = f"Hi! Let's start our conversation about: {current_activity.content}"
+
+                # Create a special user message to GPT
+                admin_prompt = f"Admin message: Start a conversation on the activity: {current_activity.content}. The user is not aware of this message."
+
+                # Send this as a user message to GPT
                 self.gpt_manager.openai_client.beta.threads.messages.create(
                     thread_id=assistant.gpt_thread_id,
-                    role="assistant",
-                    content=assistant_message
+                    role="user",
+                    content=admin_prompt
                 )
-                self.db.save_transcript(user, "", assistant_message)
-                assistant.exchange_count = 1  # Set exchange_count to 1
+
+                # Now get GPT's response
+                gpt_response = self.gpt_manager.generate_gpt_response(
+                    assistant)
+
+                # Save the assistant's response
+                self.db.save_transcript(user, "", gpt_response)
+
+                assistant.exchange_count = 1
                 assistant.save()
-                return assistant_message
+                return gpt_response
             else:
                 return "No activities to start."
 
@@ -189,30 +194,46 @@ class ChatService:
                 assistant.exchange_count = 0  # Reset exchange count
 
                 if assistant.current_activity_index < len(activities):
-                    # Assistant initiates the next activity
+                    # Create a special user message to GPT
                     next_activity = activities[assistant.current_activity_index].activity
-                    assistant_message = f"Now, let's discuss: {next_activity.content}"
+                    admin_prompt = f"Admin message: Transition to the next activity: {next_activity.content}. The user is not aware of this message."
+
+                    # Send this as a user message to GPT
                     self.gpt_manager.openai_client.beta.threads.messages.create(
                         thread_id=assistant.gpt_thread_id,
-                        role="assistant",
-                        content=assistant_message
+                        role="user",
+                        content=admin_prompt
                     )
-                    self.db.save_transcript(user, "", assistant_message)
+
+                    # Now get GPT's response
+                    gpt_response = self.gpt_manager.generate_gpt_response(
+                        assistant)
+
+                    # Save the assistant's response
+                    self.db.save_transcript(user, "", gpt_response)
                     assistant.exchange_count = 1  # Set exchange_count to 1
                     assistant.save()
-                    return assistant_message
+                    return gpt_response
                 else:
                     # End of session
-                    end_message = "Thank you for the conversation. The session has ended."
+                    admin_prompt = "Admin message: End the session. The user is not aware of this message."
+
+                    # Send this as a user message to GPT
                     self.gpt_manager.openai_client.beta.threads.messages.create(
                         thread_id=assistant.gpt_thread_id,
-                        role="assistant",
-                        content=end_message
+                        role="user",
+                        content=admin_prompt
                     )
-                    self.db.save_transcript(user, "", end_message)
+
+                    # Now get GPT's response
+                    gpt_response = self.gpt_manager.generate_gpt_response(
+                        assistant)
+
+                    # Save the assistant's response
+                    self.db.save_transcript(user, "", gpt_response)
                     assistant.exchange_count = -1  # Mark session as ended
                     assistant.save()
-                    return end_message
+                    return gpt_response
 
             assistant.save()
             return gpt_response
@@ -333,10 +354,8 @@ def chat_send_message(request):
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
 
 
-@csrf_exempt
 def get_conversation(request):
     if request.method == 'GET':
-        # Get chat_user_id from cookie
         chat_user_id = request.COOKIES.get('chat_user_id')
         if not chat_user_id:
             return JsonResponse({'conversation': []})
@@ -350,14 +369,16 @@ def get_conversation(request):
             conversation = []
 
             for transcript in transcripts:
-                conversation.append({
-                    'content': transcript.user_message,
-                    'sender': 'user'
-                })
-                conversation.append({
-                    'content': transcript.assistant_message,
-                    'sender': 'bot'
-                })
+                if transcript.user_message.strip():
+                    conversation.append({
+                        'content': transcript.user_message,
+                        'sender': 'user'
+                    })
+                if transcript.assistant_message.strip():
+                    conversation.append({
+                        'content': transcript.assistant_message,
+                        'sender': 'bot'
+                    })
 
             return JsonResponse({'conversation': conversation})
         except Exception as e:

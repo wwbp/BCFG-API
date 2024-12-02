@@ -5,14 +5,30 @@
     <title>Chat Interface</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
+        /* Container for the entire chat interface */
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
         /* Chat window styles */
         #chat-window {
             border: 1px solid #ccc;
-            width: 500px;
+            width: 100%;
             height: 400px;
             overflow-y: auto;
             padding: 10px;
             background-color: #f9f9f9;
+            box-sizing: border-box;
         }
 
         /* Chat message styles */
@@ -20,6 +36,7 @@
             display: flex;
             margin-bottom: 10px;
             max-width: 80%;
+            word-wrap: break-word;
         }
 
         .message.bot {
@@ -49,47 +66,89 @@
 
         /* Input area styles */
         #input-area {
+            display: flex;
+            width: 100%;
             margin-top: 10px;
         }
 
         #message {
-            width: 400px;
+            flex-grow: 1;
             height: 50px;
-            padding: 5px;
+            padding: 10px;
             font-size: 14px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 5px;
         }
 
         #send-button {
             padding: 10px 20px;
             font-size: 14px;
+            margin-left: 10px;
+            cursor: pointer;
         }
 
         /* Styles for session info */
         #session-info {
             margin-bottom: 10px;
-            font-size: 12px;
+            font-size: 14px;
             color: #555;
+            text-align: center;
         }
 
         /* Styles for login form */
         #login-form {
             margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         #login-form input {
-            margin-right: 5px;
-            padding: 5px;
+            margin: 5px 0;
+            padding: 10px;
             font-size: 14px;
+            width: 80%;
+            box-sizing: border-box;
         }
 
         #login-form button {
-            padding: 5px 10px;
+            padding: 10px 20px;
             font-size: 14px;
+            cursor: pointer;
         }
 
         /* Hide chat interface by default */
         #chat-interface {
             display: none;
+            width: 100%;
+        }
+
+        /* Logout button style */
+        #logout-button {
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        /* Responsive adjustments */
+        @media screen and (max-width: 600px) {
+            #chat-container {
+                width: 100%;
+            }
+
+            #message {
+                height: 40px;
+            }
+
+            #send-button {
+                padding: 10px;
+            }
+
+            #login-form input {
+                width: 100%;
+            }
         }
     </style>
     <script>
@@ -160,6 +219,14 @@
                 displaySessionId();
                 loadConversation();
             }
+
+            // Add event listener for Enter key press
+            document.getElementById('message').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Prevent newline
+                    sendMessage();
+                }
+            });
         });
 
         function login() {
@@ -188,7 +255,7 @@
                     document.getElementById('login-form').style.display = 'none';
                     document.getElementById('chat-interface').style.display = 'block';
                     displaySessionId();
-                    loadConversation();
+                    appendMessageToChatWindow(data.assistant_message, 'bot');
                 } else {
                     alert('Login failed: ' + data.error);
                 }
@@ -251,25 +318,28 @@
             contentDiv.textContent = message;
             messageDiv.appendChild(contentDiv);
             chatWindow.appendChild(messageDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
         }
     </script>
 </head>
 <body>
-    <h1>Chat Interface</h1>
-    <div id="session-info"></div>
-    <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
-    <!-- Login Form -->
-    <div id="login-form">
-        <input type="text" id="nickname" placeholder="Nickname">
-        <input type="text" id="user_id" placeholder="User ID">
-        <button onclick="login()">Login</button>
-    </div>
-    <!-- Chat Interface -->
-    <div id="chat-interface">
-        <div id="chat-window"></div>
-        <div id="input-area">
-            <textarea id="message" placeholder="Type your message here"></textarea>
-            <button id="send-button" onclick="sendMessage()">Send</button>
+    <div id="chat-container">
+        <h1>Chat Interface</h1>
+        <div id="session-info"></div>
+        <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
+        <!-- Login Form -->
+        <div id="login-form">
+            <input type="text" id="nickname" placeholder="Nickname">
+            <input type="text" id="user_id" placeholder="User ID">
+            <button onclick="login()">Login</button>
+        </div>
+        <!-- Chat Interface -->
+        <div id="chat-interface">
+            <div id="chat-window"></div>
+            <div id="input-area">
+                <textarea id="message" placeholder="Type your message here"></textarea>
+                <button id="send-button" onclick="sendMessage()">Send</button>
+            </div>
         </div>
     </div>
 </body>
