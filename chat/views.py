@@ -317,7 +317,7 @@ def chat_login(request):
         if not UserActivity.objects.filter(user=user).exists():
             activities = list(Activity.objects.all())
             random_activities = random.sample(
-                activities, min(5, len(activities)))
+                activities, min(3, len(activities)))
             for activity in random_activities:
                 UserActivity.objects.create(user=user, activity=activity)
         response = JsonResponse({'status': 'success'})
