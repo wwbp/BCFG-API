@@ -52,15 +52,9 @@ class Database:
 
     def get_prompt_instructions(self, user):
         prompt = Prompt.objects.first()
-        activities = UserActivity.objects.filter(
-            user=user).select_related('activity')
         instructions = ""
         if prompt:
             instructions += f"Persona:\n{prompt.persona}\n\nKnowledge:\n{prompt.knowledge}\n\n"
-        if activities:
-            instructions += "Activities:\n"
-            for user_activity in activities:
-                instructions += f"- {user_activity.activity.content}\n"
         return instructions
 
 
@@ -95,11 +89,11 @@ class GPTAssistantManager:
             messages = list(self.openai_client.beta.threads.messages.list(
                 thread_id=assistant.gpt_thread_id))
 
-            logging.info("Sequence of messages in the GPT thread:")
-            for msg in messages:
-                text_content = ''.join(
-                    block.text.value for block in msg.content if block.type == 'text')
-                logging.info(f"Role: {msg.role}, Content: {text_content}")
+            # logging.info("Sequence of messages in the GPT thread:")
+            # for msg in messages:
+            #     text_content = ''.join(
+            #         block.text.value for block in msg.content if block.type == 'text')
+            #     logging.info(f"Role: {msg.role}, Content: {text_content}")
 
             assistant_messages = [
                 msg for msg in messages if msg.role == "assistant"]
@@ -142,18 +136,88 @@ class ChatService:
         self.db.save_transcript(user, message, gpt_response)
         self.send_message_to_participant(user.bcfg_id, gpt_response)
 
-    def process_message_for_chat(self, user_id, message):
+    def process_message_for_chat(self, user_id, message=None):
         user = self.db.get_user_by_bcfg_id(user_id)
         if not user:
             return {'error': 'User not found. Please log in again.'}
+
         assistant = self.db.get_or_create_assistant(user)
         instructions = self.db.get_prompt_instructions(user)
         assistant = self.gpt_manager.initialize_assistant(
             assistant, instructions)
-        gpt_response = self.gpt_manager.generate_gpt_response(
-            assistant, message)
-        self.db.save_transcript(user, message, gpt_response)
-        return gpt_response
+
+        # Initialize conversation state if not set
+        if assistant.current_activity_index is None:
+            assistant.current_activity_index = 0
+        if assistant.exchange_count is None:
+            assistant.exchange_count = 0
+
+        activities = UserActivity.objects.filter(user=user).order_by('id')
+
+        # Check if session has ended
+        if assistant.exchange_count == -1:
+            return "The session has already ended."
+
+        # Assistant initiates the conversation
+        if assistant.exchange_count == 0 and not message:
+            if assistant.current_activity_index < len(activities):
+                current_activity = activities[assistant.current_activity_index].activity
+                assistant_message = f"Hi! Let's start our conversation about: {current_activity.content}"
+                self.gpt_manager.openai_client.beta.threads.messages.create(
+                    thread_id=assistant.gpt_thread_id,
+                    role="assistant",
+                    content=assistant_message
+                )
+                self.db.save_transcript(user, "", assistant_message)
+                assistant.exchange_count = 1  # Set exchange_count to 1
+                assistant.save()
+                return assistant_message
+            else:
+                return "No activities to start."
+
+        # User sends a message
+        if message is not None:
+            # Generate assistant's response
+            gpt_response = self.gpt_manager.generate_gpt_response(
+                assistant, message)
+            self.db.save_transcript(user, message, gpt_response)
+            assistant.exchange_count += 1  # Increment after assistant responds
+
+            if assistant.exchange_count >= 4:
+                # Move to next activity after 3 back-and-forth exchanges
+                assistant.current_activity_index += 1
+                assistant.exchange_count = 0  # Reset exchange count
+
+                if assistant.current_activity_index < len(activities):
+                    # Assistant initiates the next activity
+                    next_activity = activities[assistant.current_activity_index].activity
+                    assistant_message = f"Now, let's discuss: {next_activity.content}"
+                    self.gpt_manager.openai_client.beta.threads.messages.create(
+                        thread_id=assistant.gpt_thread_id,
+                        role="assistant",
+                        content=assistant_message
+                    )
+                    self.db.save_transcript(user, "", assistant_message)
+                    assistant.exchange_count = 1  # Set exchange_count to 1
+                    assistant.save()
+                    return assistant_message
+                else:
+                    # End of session
+                    end_message = "Thank you for the conversation. The session has ended."
+                    self.gpt_manager.openai_client.beta.threads.messages.create(
+                        thread_id=assistant.gpt_thread_id,
+                        role="assistant",
+                        content=end_message
+                    )
+                    self.db.save_transcript(user, "", end_message)
+                    assistant.exchange_count = -1  # Mark session as ended
+                    assistant.save()
+                    return end_message
+
+            assistant.save()
+            return gpt_response
+
+        return "No message provided."
 
     def send_message_to_participant(self, user_id, gpt_response):
         url = f"http://external-api.com/ai/api/participant/{user_id}/send"
@@ -320,7 +384,16 @@ def chat_login(request):
                 activities, min(3, len(activities)))
             for activity in random_activities:
                 UserActivity.objects.create(user=user, activity=activity)
-        response = JsonResponse({'status': 'success'})
+        # Initialize assistant and have it start the conversation
+        gpt_manager = GPTAssistantManager(
+            OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        )
+        service = ChatService(db=db, gpt_manager=gpt_manager)
+        assistant_message = service.process_message_for_chat(
+            user_id)  # Assistant starts the conversation
+        # Prepare the response
+        response = JsonResponse(
+            {'status': 'success', 'assistant_message': assistant_message})
         response.set_cookie('chat_user_id', user_id,
                             httponly=False, samesite='Lax')
         return response

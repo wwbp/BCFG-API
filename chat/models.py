@@ -13,6 +13,8 @@ class Assistant(models.Model):
     user = models.ForeignKey(User, on_delete=models.PROTECT)
     gpt_assistant_id = models.CharField(max_length=100)
     gpt_thread_id = models.CharField(max_length=100)
+    current_activity_index = models.IntegerField(default=0)
+    exchange_count = models.IntegerField(default=0, null=True, blank=True)
 
 
 class Transcript(models.Model):
