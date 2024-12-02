@@ -64,6 +64,58 @@
             border-bottom-right-radius: 0;
         }
 
+        /* Typing indicator styles */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+
+        .typing-indicator.bot {
+            justify-content: flex-start;
+        }
+
+        .typing-indicator.user {
+            justify-content: flex-end;
+        }
+
+        .typing-indicator .dot {
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            border-radius: 50%;
+            background-color: black; /* Changed to black */
+            opacity: 0.2;
+            animation: blink 1.4s infinite both;
+        }
+
+        .typing-indicator.bot .dot {
+            background-color: black; /* Changed to black */
+        }
+
+        .typing-indicator.user .dot {
+            background-color: black; /* Changed to black */
+        }
+
+        .typing-indicator .dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .typing-indicator .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+
         /* Input area styles */
         #input-area {
             display: flex;
@@ -291,6 +343,14 @@
                 return;
             }
             appendMessageToChatWindow(message, 'user');
+            document.getElementById('message').value = '';
+
+            // Append typing indicator
+            var typingIndicator = createTypingIndicator('bot');
+            var chatWindow = document.getElementById('chat-window');
+            chatWindow.appendChild(typingIndicator);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
             fetch('{% url "chat:chat_send_message" %}', {
                 method: 'POST',
                 headers: {
@@ -301,12 +361,17 @@
             })
             .then(response => response.json())
             .then(data => {
+                // Remove typing indicator
+                typingIndicator.remove();
+
                 appendMessageToChatWindow(data.response, 'bot');
-                const chatWindow = document.getElementById('chat-window');
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             })
-            .catch(error => console.error('Error:', error));
-            document.getElementById('message').value = '';
+            .catch(error => {
+                console.error('Error:', error);
+                // Remove typing indicator
+                typingIndicator.remove();
+            });
         }
 
         function appendMessageToChatWindow(message, sender) {
@@ -319,6 +384,29 @@
             messageDiv.appendChild(contentDiv);
             chatWindow.appendChild(messageDiv);
             chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function createTypingIndicator(sender) {
+            var typingDiv = document.createElement('div');
+            typingDiv.classList.add('typing-indicator', sender);
+
+            var dot1 = document.createElement('div');
+            dot1.classList.add('dot');
+            dot1.style.animationDelay = '0s';
+
+            var dot2 = document.createElement('div');
+            dot2.classList.add('dot');
+            dot2.style.animationDelay = '0.2s';
+
+            var dot3 = document.createElement('div');
+            dot3.classList.add('dot');
+            dot3.style.animationDelay = '0.4s';
+
+            typingDiv.appendChild(dot1);
+            typingDiv.appendChild(dot2);
+            typingDiv.appendChild(dot3);
+
+            return typingDiv;
         }
     </script>
 </head>
