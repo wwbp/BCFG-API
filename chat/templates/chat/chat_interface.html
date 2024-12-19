@@ -259,6 +259,7 @@
                         document.getElementById('session-info').textContent = 'Not logged in.';
                     } else {
                         document.getElementById('session-info').textContent = 'Nickname: ' + data.nickname + ', User ID: ' + data.user_id;
+                        document.getElementById('restart-button').style.display = 'inline-block';
                         document.getElementById('logout-button').style.display = 'inline-block';
                     }
                 })
@@ -268,6 +269,7 @@
                 });
             } else {
                 document.getElementById('session-info').textContent = 'Not logged in.';
+                document.getElementById('restart-button').style.display = 'none';
                 document.getElementById('logout-button').style.display = 'none';
             }
         }
@@ -441,19 +443,71 @@
 
             return typingDiv;
         }
+
+        function restartSession() {
+            var restartButton = document.getElementById('restart-button');
+            var globalSpinner = document.getElementById('global-loading-spinner');
+
+            // Show loading spinner and disable the restart button
+            globalSpinner.style.display = 'block';
+            restartButton.disabled = true;
+
+            fetch('{% url "chat:restart_session" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to restart session.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Clear the chat window
+                    const chatWindow = document.getElementById('chat-window');
+                    chatWindow.innerHTML = '';
+
+                    // Display initial assistant message, if any
+                    if (data.assistant_message) {
+                        appendMessageToChatWindow(data.assistant_message, 'bot');
+                    }
+
+                    alert('Session restarted successfully.');
+
+                    // Optionally reload the conversation if needed
+                    // loadConversation(); // If you want to load the conversation after clearing, uncomment this
+                } else {
+                    alert('Could not restart session: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting session:', error);
+                alert('Error restarting session.');
+            })
+            .finally(() => {
+                // Hide the loading spinner and re-enable the restart button
+                globalSpinner.style.display = 'none';
+                restartButton.disabled = false;
+            });
+        }
     </script>
 </head>
 <body>
     <div id="chat-container">
         <h1>Chat Interface</h1>
+        <div class="loading-spinner" id="global-loading-spinner" style="display:none;"></div>
         <div id="session-info"></div>
+        <button id="restart-button" onclick="restartSession()" style="display:none;">Restart Session</button>
         <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
         <!-- Login Form -->
         <div id="login-form">
             <input type="text" id="nickname" placeholder="Preferred Name">
             <input type="text" id="user_id" placeholder="Prolific ID">
             <button onclick="login()">Login</button>
-            <div class="loading-spinner"></div>
         </div>
         <!-- Chat Interface -->
         <div id="chat-interface">

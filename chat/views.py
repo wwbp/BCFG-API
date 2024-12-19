@@ -435,3 +435,39 @@ def get_user_info(request):
         return JsonResponse({'user_id': user.bcfg_id, 'nickname': user.name})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
+
+
+@csrf_exempt
+def restart_session(request):
+    if request.method == 'POST':
+        user_id = request.COOKIES.get('chat_user_id')
+        if not user_id:
+            return JsonResponse({'error': 'User not identified.'}, status=400)
+
+        db = Database()
+        user = db.get_user_by_bcfg_id(user_id)
+        if not user:
+            return JsonResponse({'error': 'User not found.'}, status=404)
+
+        # Clear transcripts
+        Transcript.objects.filter(user=user).delete()
+
+        # Reset assistant state
+        assistant = Assistant.objects.filter(user=user).first()
+        if assistant:
+            assistant.current_activity_index = 0
+            assistant.exchange_count = 0
+            assistant.save()
+
+        # Re-initialize the session similar to login
+        gpt_manager = GPTAssistantManager(
+            OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        )
+        service = ChatService(db=db, gpt_manager=gpt_manager)
+        assistant_message = service.process_message_for_chat(
+            user_id)  # Start fresh
+
+        return JsonResponse({'status': 'success', 'assistant_message': assistant_message})
+
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=400)
