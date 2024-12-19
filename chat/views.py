@@ -127,7 +127,8 @@ class ChatService:
             assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
             assistant, message)
-        self.db.save_transcript(user, message, gpt_response, session_number=assistant.session_count)
+        self.db.save_transcript(
+            user, message, gpt_response, session_number=assistant.session_count)
         self.send_message_to_participant(user.bcfg_id, gpt_response)
 
     def process_message_for_chat(self, user_id, message=None):
@@ -136,6 +137,9 @@ class ChatService:
             return {'error': 'User not found. Please log in again.'}
 
         assistant = self.db.get_or_create_assistant(user)
+        prompt = Prompt.objects.first()
+        if not prompt:
+            prompt = Prompt.objects.create()
         instructions = self.db.get_prompt_instructions(user)
         instructions += f"\nThe user's preferred name is: {user.name}\n"
         assistant = self.gpt_manager.initialize_assistant(
@@ -173,7 +177,8 @@ class ChatService:
                     assistant)
 
                 # Save the assistant's response
-                self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
+                self.db.save_transcript(
+                    user, "", gpt_response, session_number=assistant.session_count)
 
                 assistant.exchange_count = 1
                 assistant.save()
@@ -186,10 +191,11 @@ class ChatService:
             # Generate assistant's response
             gpt_response = self.gpt_manager.generate_gpt_response(
                 assistant, message)
-            self.db.save_transcript(user, message, gpt_response, session_number=assistant.session_count)
+            self.db.save_transcript(
+                user, message, gpt_response, session_number=assistant.session_count)
             assistant.exchange_count += 1  # Increment after assistant responds
 
-            if assistant.exchange_count >= 4:
+            if assistant.exchange_count >= prompt.num_rounds:
                 # Move to next activity after 3 back-and-forth exchanges
                 assistant.current_activity_index += 1
                 assistant.exchange_count = 0  # Reset exchange count
@@ -211,7 +217,8 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
+                    self.db.save_transcript(
+                        user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = 1  # Set exchange_count to 1
                     assistant.save()
                     return gpt_response
@@ -231,7 +238,8 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
+                    self.db.save_transcript(
+                        user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = -1  # Mark session as ended
                     assistant.save()
                     return gpt_response
@@ -267,6 +275,10 @@ def prompt_view(request):
     if request.method == 'POST':
         prompt.persona = request.POST.get('persona', '')
         prompt.knowledge = request.POST.get('knowledge', '')
+        prompt.num_activities = int(request.POST.get(
+            'num_activities', prompt.num_activities))
+        prompt.num_rounds = int(request.POST.get(
+            'num_rounds', prompt.num_rounds))
         prompt.save()
         return redirect('chat:prompt')
     context = {'prompt': prompt, 'activities': activities}
@@ -289,7 +301,9 @@ def activity_edit(request, pk):
     activity = get_object_or_404(Activity, pk=pk)
     if request.method == 'POST':
         content = request.POST.get('content', '')
+        priority = request.POST.get('priority', activity.priority)
         activity.content = content
+        activity.priority = int(priority)
         activity.save()
         return redirect('chat:prompt')
     context = {'activity': activity}
@@ -401,9 +415,13 @@ def chat_login(request):
         user = db.get_or_create_user(user_id, nickname)
         # Assign 3 random activities if not already assigned
         if not UserActivity.objects.filter(user=user).exists():
+            prompt = Prompt.objects.first()
+            if not prompt:
+                prompt = Prompt.objects.create()
             activities = list(Activity.objects.all())
-            random_activities = random.sample(
-                activities, min(3, len(activities)))
+            num_activities = min(prompt.num_activities, len(activities))
+            random_activities = random.sample(activities, num_activities)
+            random_activities.sort(key=lambda a: a.priority)
             for activity in random_activities:
                 UserActivity.objects.create(user=user, activity=activity)
         # Initialize assistant and have it start the conversation

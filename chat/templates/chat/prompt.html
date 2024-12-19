@@ -24,7 +24,7 @@
             <ul class="activity-list">
                 {% for activity in activities %}
                     <li class="activity-item">
-                        {{ activity.content }}
+                        {{ activity.content }} (Priority: {{ activity.priority }})
                         <div class="activity-actions">
                             <a href="{% url 'chat:activity_edit' activity.pk %}">Edit</a>
                             <form action="{% url 'chat:activity_delete' activity.pk %}" method="post">
@@ -43,13 +43,21 @@
             </form>
         </div>
         <div class="right">
-            <h2>Prompt</h2>
+            <h2>Prompt Settings</h2>
             <form method="post">
                 {% csrf_token %}
                 <label for="persona">Persona:</label>
                 <textarea id="persona" name="persona">{{ prompt.persona }}</textarea>
+
                 <label for="knowledge">Knowledge:</label>
                 <textarea id="knowledge" name="knowledge">{{ prompt.knowledge }}</textarea>
+
+                <label for="num_activities">Number of Activities:</label>
+                <input type="number" id="num_activities" name="num_activities" value="{{ prompt.num_activities }}" />
+
+                <label for="num_rounds">Number of Rounds per Activity:</label>
+                <input type="number" id="num_rounds" name="num_rounds" value="{{ prompt.num_rounds }}" />
+
                 <button type="submit">Update Prompt</button>
             </form>
         </div>
