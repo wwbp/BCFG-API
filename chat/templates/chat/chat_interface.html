@@ -202,6 +202,26 @@
                 width: 100%;
             }
         }
+        /* Loading spinner styles */
+        .loading-spinner {
+            display: none;
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            border: 4px solid transparent;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     <script>
         function getCookie(name) {
@@ -284,17 +304,25 @@
         function login() {
             var nickname = document.getElementById('nickname').value.trim();
             var userId = document.getElementById('user_id').value.trim();
+            var loginButton = document.querySelector("#login-form button");
+            var spinner = document.querySelector(".loading-spinner");
+
             if (!nickname || !userId) {
                 alert('Please enter both nickname and User ID.');
                 return;
             }
+
+            // Disable the button and show the spinner
+            loginButton.disabled = true;
+            spinner.style.display = 'block';
+
             fetch('{% url "chat:login" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify({'nickname': nickname, 'user_id': userId})
+                body: JSON.stringify({ nickname: nickname, user_id: userId })
             })
             .then(response => {
                 if (!response.ok) {
@@ -312,7 +340,12 @@
                     alert('Login failed: ' + data.error);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => console.error('Error:', error))
+            .finally(() => {
+                // Re-enable the button and hide the spinner
+                loginButton.disabled = false;
+                spinner.style.display = 'none';
+            });
         }
 
         function loadConversation() {
@@ -420,6 +453,7 @@
             <input type="text" id="nickname" placeholder="Nickname">
             <input type="text" id="user_id" placeholder="User ID">
             <button onclick="login()">Login</button>
+            <div class="loading-spinner"></div>
         </div>
         <!-- Chat Interface -->
         <div id="chat-interface">
