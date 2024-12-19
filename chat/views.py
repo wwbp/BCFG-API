@@ -137,6 +137,7 @@ class ChatService:
 
         assistant = self.db.get_or_create_assistant(user)
         instructions = self.db.get_prompt_instructions(user)
+        instructions += f"\nThe user's preferred name is: {user.name}\n"
         assistant = self.gpt_manager.initialize_assistant(
             assistant, instructions)
 
