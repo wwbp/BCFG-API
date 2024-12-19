@@ -43,9 +43,9 @@ class Database:
     def save_assistant(self, assistant):
         assistant.save()
 
-    def save_transcript(self, user, user_message, assistant_message):
+    def save_transcript(self, user, user_message, assistant_message, session_number):
         Transcript.objects.create(
-            user=user, user_message=user_message, assistant_message=assistant_message)
+            user=user, user_message=user_message, assistant_message=assistant_message, session_number=session_number)
 
     def get_transcripts_for_user(self, user):
         return Transcript.objects.filter(user=user).order_by('created_at')
@@ -127,7 +127,7 @@ class ChatService:
             assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
             assistant, message)
-        self.db.save_transcript(user, message, gpt_response)
+        self.db.save_transcript(user, message, gpt_response, session_number=assistant.session_count)
         self.send_message_to_participant(user.bcfg_id, gpt_response)
 
     def process_message_for_chat(self, user_id, message=None):
@@ -173,7 +173,7 @@ class ChatService:
                     assistant)
 
                 # Save the assistant's response
-                self.db.save_transcript(user, "", gpt_response)
+                self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
 
                 assistant.exchange_count = 1
                 assistant.save()
@@ -186,7 +186,7 @@ class ChatService:
             # Generate assistant's response
             gpt_response = self.gpt_manager.generate_gpt_response(
                 assistant, message)
-            self.db.save_transcript(user, message, gpt_response)
+            self.db.save_transcript(user, message, gpt_response, session_number=assistant.session_count)
             assistant.exchange_count += 1  # Increment after assistant responds
 
             if assistant.exchange_count >= 4:
@@ -211,7 +211,7 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response)
+                    self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = 1  # Set exchange_count to 1
                     assistant.save()
                     return gpt_response
@@ -231,7 +231,7 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response)
+                    self.db.save_transcript(user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = -1  # Mark session as ended
                     assistant.save()
                     return gpt_response
@@ -450,14 +450,12 @@ def restart_session(request):
         if not user:
             return JsonResponse({'error': 'User not found.'}, status=404)
 
-        # Clear transcripts
-        Transcript.objects.filter(user=user).delete()
-
         # Reset assistant state
         assistant = Assistant.objects.filter(user=user).first()
         if assistant:
             assistant.current_activity_index = 0
             assistant.exchange_count = 0
+            assistant.session_count += 1
             assistant.save()
 
         # Re-initialize the session similar to login

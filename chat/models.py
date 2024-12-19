@@ -15,6 +15,7 @@ class Assistant(models.Model):
     gpt_thread_id = models.CharField(max_length=100)
     current_activity_index = models.IntegerField(default=0)
     exchange_count = models.IntegerField(default=0, null=True, blank=True)
+    session_count = models.IntegerField(default=1) 
 
 
 class Transcript(models.Model):
@@ -22,6 +23,7 @@ class Transcript(models.Model):
     user_message = models.TextField()
     assistant_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    session_number = models.IntegerField(default=1)
 
 
 class Prompt(models.Model):
