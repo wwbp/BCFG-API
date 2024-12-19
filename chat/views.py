@@ -43,9 +43,9 @@ class Database:
     def save_assistant(self, assistant):
         assistant.save()
 
-    def save_transcript(self, user, user_message, assistant_message):
+    def save_transcript(self, user, user_message, assistant_message, session_number):
         Transcript.objects.create(
-            user=user, user_message=user_message, assistant_message=assistant_message)
+            user=user, user_message=user_message, assistant_message=assistant_message, session_number=session_number)
 
     def get_transcripts_for_user(self, user):
         return Transcript.objects.filter(user=user).order_by('created_at')
@@ -127,7 +127,8 @@ class ChatService:
             assistant, instructions)
         gpt_response = self.gpt_manager.generate_gpt_response(
             assistant, message)
-        self.db.save_transcript(user, message, gpt_response)
+        self.db.save_transcript(
+            user, message, gpt_response, session_number=assistant.session_count)
         self.send_message_to_participant(user.bcfg_id, gpt_response)
 
     def process_message_for_chat(self, user_id, message=None):
@@ -136,7 +137,11 @@ class ChatService:
             return {'error': 'User not found. Please log in again.'}
 
         assistant = self.db.get_or_create_assistant(user)
+        prompt = Prompt.objects.first()
+        if not prompt:
+            prompt = Prompt.objects.create()
         instructions = self.db.get_prompt_instructions(user)
+        instructions += f"\nThe user's preferred name is: {user.name}\n"
         assistant = self.gpt_manager.initialize_assistant(
             assistant, instructions)
 
@@ -172,7 +177,8 @@ class ChatService:
                     assistant)
 
                 # Save the assistant's response
-                self.db.save_transcript(user, "", gpt_response)
+                self.db.save_transcript(
+                    user, "", gpt_response, session_number=assistant.session_count)
 
                 assistant.exchange_count = 1
                 assistant.save()
@@ -185,10 +191,11 @@ class ChatService:
             # Generate assistant's response
             gpt_response = self.gpt_manager.generate_gpt_response(
                 assistant, message)
-            self.db.save_transcript(user, message, gpt_response)
+            self.db.save_transcript(
+                user, message, gpt_response, session_number=assistant.session_count)
             assistant.exchange_count += 1  # Increment after assistant responds
 
-            if assistant.exchange_count >= 4:
+            if assistant.exchange_count >= prompt.num_rounds:
                 # Move to next activity after 3 back-and-forth exchanges
                 assistant.current_activity_index += 1
                 assistant.exchange_count = 0  # Reset exchange count
@@ -210,7 +217,8 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response)
+                    self.db.save_transcript(
+                        user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = 1  # Set exchange_count to 1
                     assistant.save()
                     return gpt_response
@@ -230,7 +238,8 @@ class ChatService:
                         assistant)
 
                     # Save the assistant's response
-                    self.db.save_transcript(user, "", gpt_response)
+                    self.db.save_transcript(
+                        user, "", gpt_response, session_number=assistant.session_count)
                     assistant.exchange_count = -1  # Mark session as ended
                     assistant.save()
                     return gpt_response
@@ -266,6 +275,10 @@ def prompt_view(request):
     if request.method == 'POST':
         prompt.persona = request.POST.get('persona', '')
         prompt.knowledge = request.POST.get('knowledge', '')
+        prompt.num_activities = int(request.POST.get(
+            'num_activities', prompt.num_activities))
+        prompt.num_rounds = int(request.POST.get(
+            'num_rounds', prompt.num_rounds))
         prompt.save()
         return redirect('chat:prompt')
     context = {'prompt': prompt, 'activities': activities}
@@ -288,7 +301,9 @@ def activity_edit(request, pk):
     activity = get_object_or_404(Activity, pk=pk)
     if request.method == 'POST':
         content = request.POST.get('content', '')
+        priority = request.POST.get('priority', activity.priority)
         activity.content = content
+        activity.priority = int(priority)
         activity.save()
         return redirect('chat:prompt')
     context = {'activity': activity}
@@ -400,9 +415,13 @@ def chat_login(request):
         user = db.get_or_create_user(user_id, nickname)
         # Assign 3 random activities if not already assigned
         if not UserActivity.objects.filter(user=user).exists():
+            prompt = Prompt.objects.first()
+            if not prompt:
+                prompt = Prompt.objects.create()
             activities = list(Activity.objects.all())
-            random_activities = random.sample(
-                activities, min(3, len(activities)))
+            num_activities = min(prompt.num_activities, len(activities))
+            random_activities = random.sample(activities, num_activities)
+            random_activities.sort(key=lambda a: a.priority)
             for activity in random_activities:
                 UserActivity.objects.create(user=user, activity=activity)
         # Initialize assistant and have it start the conversation
@@ -433,5 +452,39 @@ def get_user_info(request):
         if not user:
             return JsonResponse({'error': 'User not found'}, status=404)
         return JsonResponse({'user_id': user.bcfg_id, 'nickname': user.name})
+    else:
+        return JsonResponse({'error': 'Invalid request method.'}, status=400)
+
+
+@csrf_exempt
+def restart_session(request):
+    if request.method == 'POST':
+        user_id = request.COOKIES.get('chat_user_id')
+        if not user_id:
+            return JsonResponse({'error': 'User not identified.'}, status=400)
+
+        db = Database()
+        user = db.get_user_by_bcfg_id(user_id)
+        if not user:
+            return JsonResponse({'error': 'User not found.'}, status=404)
+
+        # Reset assistant state
+        assistant = Assistant.objects.filter(user=user).first()
+        if assistant:
+            assistant.current_activity_index = 0
+            assistant.exchange_count = 0
+            assistant.session_count += 1
+            assistant.save()
+
+        # Re-initialize the session similar to login
+        gpt_manager = GPTAssistantManager(
+            OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        )
+        service = ChatService(db=db, gpt_manager=gpt_manager)
+        assistant_message = service.process_message_for_chat(
+            user_id)  # Start fresh
+
+        return JsonResponse({'status': 'success', 'assistant_message': assistant_message})
+
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)

@@ -64,6 +64,58 @@
             border-bottom-right-radius: 0;
         }
 
+        /* Typing indicator styles */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            max-width: 80%;
+        }
+
+        .typing-indicator.bot {
+            justify-content: flex-start;
+        }
+
+        .typing-indicator.user {
+            justify-content: flex-end;
+        }
+
+        .typing-indicator .dot {
+            width: 8px;
+            height: 8px;
+            margin: 0 2px;
+            border-radius: 50%;
+            background-color: black; /* Changed to black */
+            opacity: 0.2;
+            animation: blink 1.4s infinite both;
+        }
+
+        .typing-indicator.bot .dot {
+            background-color: black; /* Changed to black */
+        }
+
+        .typing-indicator.user .dot {
+            background-color: black; /* Changed to black */
+        }
+
+        .typing-indicator .dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .typing-indicator .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-indicator .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+
         /* Input area styles */
         #input-area {
             display: flex;
@@ -150,6 +202,26 @@
                 width: 100%;
             }
         }
+        /* Loading spinner styles */
+        .loading-spinner {
+            display: none;
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            border: 4px solid transparent;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     <script>
         function getCookie(name) {
@@ -187,6 +259,7 @@
                         document.getElementById('session-info').textContent = 'Not logged in.';
                     } else {
                         document.getElementById('session-info').textContent = 'Nickname: ' + data.nickname + ', User ID: ' + data.user_id;
+                        document.getElementById('restart-button').style.display = 'inline-block';
                         document.getElementById('logout-button').style.display = 'inline-block';
                     }
                 })
@@ -196,6 +269,7 @@
                 });
             } else {
                 document.getElementById('session-info').textContent = 'Not logged in.';
+                document.getElementById('restart-button').style.display = 'none';
                 document.getElementById('logout-button').style.display = 'none';
             }
         }
@@ -232,17 +306,25 @@
         function login() {
             var nickname = document.getElementById('nickname').value.trim();
             var userId = document.getElementById('user_id').value.trim();
+            var loginButton = document.querySelector("#login-form button");
+            var spinner = document.querySelector(".loading-spinner");
+
             if (!nickname || !userId) {
                 alert('Please enter both nickname and User ID.');
                 return;
             }
+
+            // Disable the button and show the spinner
+            loginButton.disabled = true;
+            spinner.style.display = 'block';
+
             fetch('{% url "chat:login" %}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify({'nickname': nickname, 'user_id': userId})
+                body: JSON.stringify({ nickname: nickname, user_id: userId })
             })
             .then(response => {
                 if (!response.ok) {
@@ -260,7 +342,12 @@
                     alert('Login failed: ' + data.error);
                 }
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => console.error('Error:', error))
+            .finally(() => {
+                // Re-enable the button and hide the spinner
+                loginButton.disabled = false;
+                spinner.style.display = 'none';
+            });
         }
 
         function loadConversation() {
@@ -291,6 +378,14 @@
                 return;
             }
             appendMessageToChatWindow(message, 'user');
+            document.getElementById('message').value = '';
+
+            // Append typing indicator
+            var typingIndicator = createTypingIndicator('bot');
+            var chatWindow = document.getElementById('chat-window');
+            chatWindow.appendChild(typingIndicator);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
             fetch('{% url "chat:chat_send_message" %}', {
                 method: 'POST',
                 headers: {
@@ -301,12 +396,17 @@
             })
             .then(response => response.json())
             .then(data => {
+                // Remove typing indicator
+                typingIndicator.remove();
+
                 appendMessageToChatWindow(data.response, 'bot');
-                const chatWindow = document.getElementById('chat-window');
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             })
-            .catch(error => console.error('Error:', error));
-            document.getElementById('message').value = '';
+            .catch(error => {
+                console.error('Error:', error);
+                // Remove typing indicator
+                typingIndicator.remove();
+            });
         }
 
         function appendMessageToChatWindow(message, sender) {
@@ -320,17 +420,93 @@
             chatWindow.appendChild(messageDiv);
             chatWindow.scrollTop = chatWindow.scrollHeight;
         }
+
+        function createTypingIndicator(sender) {
+            var typingDiv = document.createElement('div');
+            typingDiv.classList.add('typing-indicator', sender);
+
+            var dot1 = document.createElement('div');
+            dot1.classList.add('dot');
+            dot1.style.animationDelay = '0s';
+
+            var dot2 = document.createElement('div');
+            dot2.classList.add('dot');
+            dot2.style.animationDelay = '0.2s';
+
+            var dot3 = document.createElement('div');
+            dot3.classList.add('dot');
+            dot3.style.animationDelay = '0.4s';
+
+            typingDiv.appendChild(dot1);
+            typingDiv.appendChild(dot2);
+            typingDiv.appendChild(dot3);
+
+            return typingDiv;
+        }
+
+        function restartSession() {
+            var restartButton = document.getElementById('restart-button');
+            var globalSpinner = document.getElementById('global-loading-spinner');
+
+            // Show loading spinner and disable the restart button
+            globalSpinner.style.display = 'block';
+            restartButton.disabled = true;
+
+            fetch('{% url "chat:restart_session" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to restart session.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Clear the chat window
+                    const chatWindow = document.getElementById('chat-window');
+                    chatWindow.innerHTML = '';
+
+                    // Display initial assistant message, if any
+                    if (data.assistant_message) {
+                        appendMessageToChatWindow(data.assistant_message, 'bot');
+                    }
+
+                    alert('Session restarted successfully.');
+
+                    // Optionally reload the conversation if needed
+                    // loadConversation(); // If you want to load the conversation after clearing, uncomment this
+                } else {
+                    alert('Could not restart session: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error restarting session:', error);
+                alert('Error restarting session.');
+            })
+            .finally(() => {
+                // Hide the loading spinner and re-enable the restart button
+                globalSpinner.style.display = 'none';
+                restartButton.disabled = false;
+            });
+        }
     </script>
 </head>
 <body>
     <div id="chat-container">
         <h1>Chat Interface</h1>
+        <div class="loading-spinner" id="global-loading-spinner" style="display:none;"></div>
         <div id="session-info"></div>
+        <button id="restart-button" onclick="restartSession()" style="display:none;">Restart Session</button>
         <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
         <!-- Login Form -->
         <div id="login-form">
-            <input type="text" id="nickname" placeholder="Nickname">
-            <input type="text" id="user_id" placeholder="User ID">
+            <input type="text" id="nickname" placeholder="Preferred Name">
+            <input type="text" id="user_id" placeholder="Prolific ID">
             <button onclick="login()">Login</button>
         </div>
         <!-- Chat Interface -->
