@@ -4,11 +4,14 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for building mysqlclient
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpq-dev \
+    pkg-config \
+    default-libmysqlclient-dev \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Install pipenv
 RUN pip install --no-cache-dir pipenv
@@ -24,6 +27,9 @@ COPY . /app/
 
 # Expose port 80 for the application
 EXPOSE 80
+# Copy the wait-for-it script
+COPY wait-for-it.sh /app/wait-for-it.sh
+RUN chmod +x /app/wait-for-it.sh
 
 # Copy the entrypoint script
 COPY entrypoint.sh /app/entrypoint.sh
