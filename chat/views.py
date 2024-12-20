@@ -218,7 +218,7 @@ class ChatService:
                     # Save the assistant's response
                     self.db.save_transcript(
                         user, "", gpt_response_transition, session_number=assistant.session_count)
-                    assistant.exchange_count = 1  # Set exchange_count to 1
+                    assistant.exchange_count = 0
                     assistant.save()
                     # return gpt_response_2_user + '\n\n' + gpt_response_transition
                     return {
