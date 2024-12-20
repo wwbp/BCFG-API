@@ -180,7 +180,6 @@ class ChatService:
                 self.db.save_transcript(
                     user, "", gpt_response, session_number=assistant.session_count)
 
-                assistant.exchange_count = 1
                 assistant.save()
                 return gpt_response
             else:
@@ -189,10 +188,10 @@ class ChatService:
         # User sends a message
         if message is not None:
             # Generate assistant's response
-            gpt_response = self.gpt_manager.generate_gpt_response(
+            gpt_response_2_user = self.gpt_manager.generate_gpt_response(
                 assistant, message)
             self.db.save_transcript(
-                user, message, gpt_response, session_number=assistant.session_count)
+                user, message, gpt_response_2_user, session_number=assistant.session_count)
             assistant.exchange_count += 1  # Increment after assistant responds
 
             if assistant.exchange_count >= prompt.num_rounds:
@@ -213,15 +212,19 @@ class ChatService:
                     )
 
                     # Now get GPT's response
-                    gpt_response = self.gpt_manager.generate_gpt_response(
+                    gpt_response_transition = self.gpt_manager.generate_gpt_response(
                         assistant)
 
                     # Save the assistant's response
                     self.db.save_transcript(
-                        user, "", gpt_response, session_number=assistant.session_count)
+                        user, "", gpt_response_transition, session_number=assistant.session_count)
                     assistant.exchange_count = 1  # Set exchange_count to 1
                     assistant.save()
-                    return gpt_response
+                    # return gpt_response_2_user + '\n\n' + gpt_response_transition
+                    return {
+                        'multiple_responses': True,
+                        'responses': [gpt_response_2_user, gpt_response_transition]
+                    }
                 else:
                     # End of session
                     admin_prompt = "Admin message: End the session. The user is not aware of this message."
@@ -234,18 +237,22 @@ class ChatService:
                     )
 
                     # Now get GPT's response
-                    gpt_response = self.gpt_manager.generate_gpt_response(
+                    gpt_response_conclude = self.gpt_manager.generate_gpt_response(
                         assistant)
 
                     # Save the assistant's response
                     self.db.save_transcript(
-                        user, "", gpt_response, session_number=assistant.session_count)
+                        user, "", gpt_response_conclude, session_number=assistant.session_count)
                     assistant.exchange_count = -1  # Mark session as ended
                     assistant.save()
-                    return gpt_response
+                    # return gpt_response_2_user + '\n\n' + gpt_response_conclude
+                    return {
+                        'multiple_responses': True,
+                        'responses': [gpt_response_2_user, gpt_response_conclude]
+                    }
 
             assistant.save()
-            return gpt_response
+            return gpt_response_2_user
 
         return "No message provided."
 
@@ -364,7 +371,11 @@ def chat_send_message(request):
         service = ChatService(db=db, gpt_manager=gpt_manager)
 
         gpt_response = service.process_message_for_chat(user_id, message)
-        return JsonResponse({'response': gpt_response})
+        # return JsonResponse({'response': gpt_response})
+        if isinstance(gpt_response, dict) and gpt_response.get('multiple_responses'):
+            return JsonResponse({'multiple_responses': True, 'responses': gpt_response['responses']})
+        else:
+            return JsonResponse({'response': gpt_response})
     else:
         return JsonResponse({'error': 'Invalid request method.'}, status=400)
 

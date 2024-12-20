@@ -399,7 +399,16 @@
                 // Remove typing indicator
                 typingIndicator.remove();
 
-                appendMessageToChatWindow(data.response, 'bot');
+                // appendMessageToChatWindow(data.response, 'bot');
+                if (data.multiple_responses === true) {
+                    // We have multiple separate bot messages
+                    data.responses.forEach(function(msg) {
+                        appendMessageToChatWindow(msg, 'bot');
+                    });
+                } else {
+                    // Single response
+                    appendMessageToChatWindow(data.response, 'bot');
+                }
                 chatWindow.scrollTop = chatWindow.scrollHeight;
             })
             .catch(error => {
