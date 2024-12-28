@@ -224,29 +224,23 @@
         }
     </style>
     <script>
-        function getCookie(name) {
-            var cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                var cookies = document.cookie.split(';');
-                for (var i = 0; i < cookies.length; i++) {
-                    var cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
+        function setUserId(userId) {
+            localStorage.setItem('chat_user_id', userId);
+        }
+
+        function getUserId() {
+            return localStorage.getItem('chat_user_id');
         }
 
         function displaySessionId() {
-            var sessionId = getCookie('chat_user_id');
+            var sessionId = getUserId();
             if (sessionId) {
                 fetch('{% url "chat:get_user_info" %}', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
-                    }
+                        'X-User-Id': sessionId
+                    },
                 })
                 .then(response => {
                     if (!response.ok) {
@@ -276,13 +270,12 @@
 
         function logout() {
             // Delete the 'chat_user_id' cookie
-            document.cookie = 'chat_user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            // Reload the page
+            localStorage.removeItem('chat_user_id');
             location.reload();
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            var userId = getCookie('chat_user_id');
+            var userId = getUserId();
             if (!userId) {
                 document.getElementById('login-form').style.display = 'block';
                 document.getElementById('chat-interface').style.display = 'none';
@@ -321,10 +314,10 @@
             fetch('{% url "chat:login" %}', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ nickname: nickname, user_id: userId })
+                body: JSON.stringify({ nickname: nickname, user_id: userId }),
+                credentials: 'include'
             })
             .then(response => {
                 if (!response.ok) {
@@ -336,6 +329,7 @@
                 if (data.status === 'success') {
                     document.getElementById('login-form').style.display = 'none';
                     document.getElementById('chat-interface').style.display = 'block';
+                    setUserId(userId);
                     displaySessionId();
                     appendMessageToChatWindow(data.assistant_message, 'bot');
                 } else {
@@ -351,10 +345,12 @@
         }
 
         function loadConversation() {
+            const sessionId = getUserId();
             fetch('{% url "chat:get_conversation" %}', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-User-Id': sessionId
                 }
             })
             .then(response => response.json())
@@ -372,7 +368,7 @@
         function sendMessage() {
             var message = document.getElementById('message').value.trim();
             if (message === '') return;
-            var sessionId = getCookie('chat_user_id');
+            var sessionId = getUserId();
             if (!sessionId) {
                 alert('User not identified. Please log in.');
                 return;
@@ -390,7 +386,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
+                    'X-User-Id': sessionId
                 },
                 body: JSON.stringify({'message': message})
             })
@@ -456,6 +452,7 @@
         function restartSession() {
             var restartButton = document.getElementById('restart-button');
             var globalSpinner = document.getElementById('global-loading-spinner');
+            var sessionId = getUserId();
 
             // Show loading spinner and disable the restart button
             globalSpinner.style.display = 'block';
@@ -465,7 +462,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
+                    'X-User-Id': sessionId
                 }
             })
             .then(response => {
