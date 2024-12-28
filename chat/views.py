@@ -360,7 +360,7 @@ def chat_send_message(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         message = data.get('message')
-        user_id = request.COOKIES.get('chat_user_id')
+        user_id = request.headers.get('X-User-Id')
         if not user_id:
             return JsonResponse({'error': 'User not identified.'}, status=400)
 
@@ -382,7 +382,7 @@ def chat_send_message(request):
 
 def get_conversation(request):
     if request.method == 'GET':
-        chat_user_id = request.COOKIES.get('chat_user_id')
+        chat_user_id = request.headers.get('X-User-Id')
         if not chat_user_id:
             return JsonResponse({'conversation': []})
 
@@ -445,8 +445,6 @@ def chat_login(request):
         # Prepare the response
         response = JsonResponse(
             {'status': 'success', 'assistant_message': assistant_message})
-        response.set_cookie('chat_user_id', user_id,
-                            httponly=False, samesite='Lax')
         return response
     else:
         return JsonResponse({'status': 'error', 'error': 'Invalid request method.'})
@@ -455,7 +453,7 @@ def chat_login(request):
 @csrf_exempt
 def get_user_info(request):
     if request.method == 'GET':
-        user_id = request.COOKIES.get('chat_user_id')
+        user_id = request.headers.get('X-User-Id')
         if not user_id:
             return JsonResponse({'error': 'User not authenticated'}, status=401)
         db = Database()
@@ -470,7 +468,7 @@ def get_user_info(request):
 @csrf_exempt
 def restart_session(request):
     if request.method == 'POST':
-        user_id = request.COOKIES.get('chat_user_id')
+        user_id = request.headers.get('X-User-Id')
         if not user_id:
             return JsonResponse({'error': 'User not identified.'}, status=400)
 
