@@ -189,7 +189,7 @@ class ChatService:
         if message is not None:
             assistant.exchange_count += 1  # Increment after assistant responds
             if assistant.exchange_count == prompt.num_rounds:
-                message += " [admin message] this is the last message, do not ask question, just respond"
+                message += " [admin message: this is the last message, do not ask question, just conclude]"
             # Generate assistant's response
             gpt_response_2_user = self.gpt_manager.generate_gpt_response(
                 assistant, message)
@@ -227,30 +227,32 @@ class ChatService:
                         'responses': [gpt_response_2_user, gpt_response_transition]
                     }
                 else:
-                    # End of session
-                    admin_prompt = "Admin message: End the session. The user is not aware of this message."
+                    # # End of session
+                    # admin_prompt = "Admin message: End the session. The user is not aware of this message."
 
-                    # Send this as a user message to GPT
-                    self.gpt_manager.openai_client.beta.threads.messages.create(
-                        thread_id=assistant.gpt_thread_id,
-                        role="user",
-                        content=admin_prompt
-                    )
+                    # # Send this as a user message to GPT
+                    # self.gpt_manager.openai_client.beta.threads.messages.create(
+                    #     thread_id=assistant.gpt_thread_id,
+                    #     role="user",
+                    #     content=admin_prompt
+                    # )
 
-                    # Now get GPT's response
-                    gpt_response_conclude = self.gpt_manager.generate_gpt_response(
-                        assistant)
+                    # # Now get GPT's response
+                    # gpt_response_conclude = self.gpt_manager.generate_gpt_response(
+                    #     assistant)
 
-                    # Save the assistant's response
-                    self.db.save_transcript(
-                        user, "", gpt_response_conclude, session_number=assistant.session_count)
+                    # # Save the assistant's response
+                    # self.db.save_transcript(
+                    #     user, "", gpt_response_conclude, session_number=assistant.session_count)
                     assistant.exchange_count = -1  # Mark session as ended
+                    # assistant.save()
+                    # # return gpt_response_2_user + '\n\n' + gpt_response_conclude
+                    # return {
+                    #     'multiple_responses': True,
+                    #     'responses': [gpt_response_2_user, gpt_response_conclude]
+                    # }
                     assistant.save()
-                    # return gpt_response_2_user + '\n\n' + gpt_response_conclude
-                    return {
-                        'multiple_responses': True,
-                        'responses': [gpt_response_2_user, gpt_response_conclude]
-                    }
+                    return gpt_response_2_user
 
             assistant.save()
             return gpt_response_2_user
