@@ -253,7 +253,6 @@
                         document.getElementById('session-info').textContent = 'Not logged in.';
                     } else {
                         document.getElementById('session-info').textContent = 'Nickname: ' + data.nickname + ', User ID: ' + data.user_id;
-                        document.getElementById('restart-button').style.display = 'inline-block';
                         document.getElementById('logout-button').style.display = 'inline-block';
                     }
                 })
@@ -263,7 +262,6 @@
                 });
             } else {
                 document.getElementById('session-info').textContent = 'Not logged in.';
-                document.getElementById('restart-button').style.display = 'none';
                 document.getElementById('logout-button').style.display = 'none';
             }
         }
@@ -507,7 +505,6 @@
         <h1>Chat Interface</h1>
         <div class="loading-spinner" id="global-loading-spinner" style="display:none;"></div>
         <div id="session-info"></div>
-        <button id="restart-button" onclick="restartSession()" style="display:none;">Restart Session</button>
         <button id="logout-button" onclick="logout()" style="display:none;">Logout</button>
         <!-- Login Form -->
         <div id="login-form">
