@@ -187,15 +187,16 @@ class ChatService:
 
         # User sends a message
         if message is not None:
+            assistant.exchange_count += 1  # Increment after assistant responds
+            if assistant.exchange_count == prompt.num_rounds:
+                message += " [admin message] this is the last message, do not ask question, just respond"
             # Generate assistant's response
             gpt_response_2_user = self.gpt_manager.generate_gpt_response(
                 assistant, message)
             self.db.save_transcript(
                 user, message, gpt_response_2_user, session_number=assistant.session_count)
-            assistant.exchange_count += 1  # Increment after assistant responds
-
             if assistant.exchange_count >= prompt.num_rounds:
-                # Move to next activity after 3 back-and-forth exchanges
+                # Move to next activity after exchanges
                 assistant.current_activity_index += 1
                 assistant.exchange_count = 0  # Reset exchange count
 
