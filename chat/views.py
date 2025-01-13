@@ -189,7 +189,7 @@ class ChatService:
         if message is not None:
             assistant.exchange_count += 1  # Increment after assistant responds
             if assistant.exchange_count == prompt.num_rounds:
-                message += " [admin message: this is the last message, do not ask question, just conclude]"
+                message += " [admin message: this is the last message, do not ask question, just respond]"
             # Generate assistant's response
             gpt_response_2_user = self.gpt_manager.generate_gpt_response(
                 assistant, message)
