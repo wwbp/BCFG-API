@@ -1,4 +1,5 @@
 ./
+    locustfile.py
     ls_dir.py
     Dockerfile
     README.md
@@ -6,9 +7,10 @@
     wait-for-it.sh
     docker-compose.yml
     manage.py
+    dst.txt
+    Archive.zip
     entrypoint.sh
     Pipfile.lock
-    ds.txt
     chat/
         models.py
         __init__.py

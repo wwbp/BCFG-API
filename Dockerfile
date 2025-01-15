@@ -39,4 +39,4 @@ RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Command to run the application
-CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:80"]
+CMD ["gunicorn", "bcfg_chat_api.wsgi:application", "--bind", "0.0.0.0:80", "--worker-class", "gevent", "--workers", "4"]

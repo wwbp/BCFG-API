@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import requests
 import os
 from pathlib import Path
 
@@ -28,6 +29,18 @@ SECRET_KEY = 'django-insecure-bl)(6+5^ozc^eqdp092!ciiu39s&umh(23+td9pg71=+nlf-ds
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+
+# Append Elastic Beanstalk Load Balancer Health Check requests since the source host IP address keeps changing
+try:
+    token = requests.put('http://169.254.169.254/latest/api/token',
+                         headers={'X-aws-ec2-metadata-token-ttl-seconds': '60'}).text
+    internal_ip = requests.get('http://169.254.169.254/latest/meta-data/local-ipv4',
+                               headers={'X-aws-ec2-metadata-token': token}).text
+except requests.exceptions.ConnectionError:
+    pass
+else:
+    ALLOWED_HOSTS.append(internal_ip)
+del requests
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True

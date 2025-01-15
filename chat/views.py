@@ -3,9 +3,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponseNotAllowed
 from .models import Prompt, Activity, UserActivity
 from django.views.decorators.clickjacking import xframe_options_exempt
-from django.views import View
-from django.utils.decorators import method_decorator
-import uuid
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -14,9 +11,13 @@ import json
 import logging
 import os
 import requests
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 logging.basicConfig(level=logging.INFO)
+
+
+def health_check(request):
+    return JsonResponse({"status": "ok"})
 
 
 class Database:
@@ -79,29 +80,38 @@ class GPTAssistantManager:
         return assistant.id, thread.id
 
     def generate_gpt_response(self, assistant, message=None):
-        if message:
-            self.openai_client.beta.threads.messages.create(
-                thread_id=assistant.gpt_thread_id, role="user", content=message
+        try:
+            if message:
+                self.openai_client.beta.threads.messages.create(
+                    thread_id=assistant.gpt_thread_id, role="user", content=message
+                )
+            run = self.openai_client.beta.threads.runs.create_and_poll(
+                thread_id=assistant.gpt_thread_id, assistant_id=assistant.gpt_assistant_id
             )
-        run = self.openai_client.beta.threads.runs.create_and_poll(
-            thread_id=assistant.gpt_thread_id, assistant_id=assistant.gpt_assistant_id
-        )
-        if run.status == 'completed':
-            messages = list(self.openai_client.beta.threads.messages.list(
-                thread_id=assistant.gpt_thread_id))
-            assistant_messages = [
-                msg for msg in messages if msg.role == "assistant"]
-            if assistant_messages:
-                content_blocks = assistant_messages[0].content
-                text = ''.join(
-                    block.text.value for block in content_blocks if block.type == 'text')
-                return text
+            if run.status == 'completed':
+                messages = list(self.openai_client.beta.threads.messages.list(
+                    thread_id=assistant.gpt_thread_id))
+                assistant_messages = [
+                    msg for msg in messages if msg.role == "assistant"]
+                if assistant_messages:
+                    content_blocks = assistant_messages[0].content
+                    text = ''.join(
+                        block.text.value for block in content_blocks if block.type == 'text')
+                    return text
+                else:
+                    logging.error("No assistant messages found in the thread.")
+                    return "There was an error processing your message."
             else:
-                logging.error("No assistant messages found in the thread.")
+                logging.error(f"Run failed with status: {run.status}")
                 return "There was an error processing your message."
-        else:
-            logging.error(f"Run failed with status: {run.status}")
-            return "There was an error processing your message."
+        except RateLimitError as e:
+            # Extract wait time and log error
+            retry_after = e.error.get('error', {}).get(
+                'message', '').split("after")[-1].strip()
+            logging.error(f"RateLimitError: {e} - Retry after {retry_after}")
+
+            # Notify the user
+            return f"We're experiencing high traffic. Please wait {retry_after} before trying again."
 
 
 class ChatService:
@@ -228,7 +238,7 @@ class ChatService:
                     }
                 else:
                     # End of session
-                    admin_prompt = "Admin message: End the session. The user is not aware of this message."
+                    admin_prompt = """Admin message: End the session. The user is not aware of this message. Conclude with: Thank you for sharing your thoughts and feelings today! Remember, reflecting on your experiences can be a valuable part of your growth. Now, please first click "Logout" at the start of the chat interface. Then click the button at the bottom right of the page to return to the survey and answer a few questions about your experiences chatting with me. Take care!"""
 
                     # Send this as a user message to GPT
                     self.gpt_manager.openai_client.beta.threads.messages.create(
